@@ -6,7 +6,7 @@ Host leo
    User seb
    Hostname 192.168.1.10
    Port 22
-   ProxyJump gray       
+   ProxyJump gray
    HostKeyAlias leo
    CheckHostIP no
 
@@ -21,7 +21,7 @@ a leoscr 'sshfs leo:/home/seb/ leo'
 
 установка переменных окружения:
 
-a setphantom 'setenv OMP_SCHEDULE "dynamic"; setenv OMP_STACKSIZE 512M; setenv SYSTEM gfortran' 
+a setphantom 'setenv OMP_SCHEDULE "dynamic"; setenv OMP_STACKSIZE 512M; setenv SYSTEM gfortran'
 
 a movie 'ffmpeg -i \!*_%04d.png -r 10 -vb 50M -bt 100M -pix_fmt yuv420p  movie.mp4'
 
@@ -37,7 +37,7 @@ mkpoly polytrope
 вместо star может быть blast, polytrope, nsmerger, etc.
 
 before make setup do
- setphantom 
+ setphantom
 
 before running phantom to relax  star insert
 idam = 1 (or 2?)
@@ -46,24 +46,24 @@ damp =       0.030    ! artificial damping of velocities (if on, v=0 initially)
 
 Если выбрать единицу массы Msun, а длины 1 км, задать 0.3 + 1.4 Msun, то дальше по умолчанию:
 
----------- binary parameters ----------- 
-  primary mass     :   0.300    
-  secondary mass   :    1.40    
-  mass ratio m2/m1 :    4.67    
-  reduced mass     :   0.247    
-  semi-major axis  :    100.    
+---------- binary parameters -----------
+  primary mass     :   0.300
+  secondary mass   :    1.40
+  mass ratio m2/m1 :    4.67
+  reduced mass     :   0.247
+  semi-major axis  :    100.
   period           :   0.482E+04
-  eccentricity     :    0.00    
-  pericentre       :    100.    
-  apocentre        :    100.    
-  angular momentum :   3.221    
+  eccentricity     :    0.00
+  pericentre       :    100.
+  apocentre        :    100.
+  angular momentum :   3.221
   mean ang. speed  :  0.1304E-02
   Omega_0 (prim)   :  0.1304E-02
   Omega_0 (second) :  0.1304E-02
-  R_accretion (1)  :   1.000    
-  R_accretion (2)  :   1.000    
-  Roche lobe  (1)  :   25.66    
-  Roche lobe  (2)  :   51.48    
+  R_accretion (1)  :   1.000
+  R_accretion (2)  :   1.000
+  Roche lobe  (1)  :   25.66
+  Roche lobe  (2)  :   51.48
   ----------------------------------------
 
 Беру gamma=5/3
@@ -78,13 +78,13 @@ Andrey Yudin
 Я бы запустил со следующими параметрами (хотя УрС и не тот):
 m1=1.4, R1=11 km
 m2=0.4, R2=13 km
-a=46.4 km - расстояние между компаньонами. Тогда m2 чуть переполняет свою 
+a=46.4 km - расстояние между компаньонами. Тогда m2 чуть переполняет свою
 полость Роша.
 
 Беру
 m1=1.2, R1=11 km
 m2=0.4, R2=13 km -- чтобы делить на 3 по числу точек
-a=48.3497 km - расстояние между компаньонами. Тогда m2 чуть переполняет свою 
+a=48.3497 km - расстояние между компаньонами. Тогда m2 чуть переполняет свою
 полость Роша.
 gamma=5/3, a~50 быстрый разрыв
 а~60 разрыв помедленнее
@@ -97,7 +97,7 @@ gamma=5/3, a~50 быстрый разрыв
 
 binary has wrong description at make moddump -- оно даёт sink вместо реальной 2й звезды, но это часто удобно.
 -- такой режим по умолчанию для mkphst (star)
-make moddump 
+make moddump
 is in fact
 make moddump MODFILE=moddump_binary.f90
 which does note work for mkpoly regime
@@ -121,7 +121,7 @@ Code units of mag flux density =    1.8213E+020
 
 Initial field strength (Bzero) =  -1.0000E+13 G ( -5.4905E-08 in code units)
 
- --- code units --- 
+ --- code units ---
 
      Mass:  1.989E+33 g       Length:  1.000E+05 cm    Time:  2.745E-06 s
   Density:  1.989E+18 g/cm^3  Energy:  2.640E+54 erg   En/m:  1.327E+21 erg/g
@@ -136,7 +136,7 @@ For TDE (tde2) with M_BH=1e6 Msun we have M_u=Msun, L_u=Rsun:
 Mstar=M_*=25 Msun  e=0 - эксцентиситет
 orbit 300 Rsun Raccr for BH 13 Rsun
 
---- code units --- 
+--- code units ---
 
      Mass:  1.989E+33 g       Length:  6.960E+10 cm    Time:  1.594E+03 s
   Density:  5.901E+00 g/cm^3  Energy:  3.793E+48 erg   En/m:  1.907E+15 erg/g
@@ -147,97 +147,97 @@ orbit 300 Rsun Raccr for BH 13 Rsun
 
 T^2=d^3/(M_{BH}+M_*), если T в годах, а d в AU, T=1.6e-3 yr
 
-tde3 M_BH=1e6 Msun M_*=25 Msun e=0.15 
+tde3 M_BH=1e6 Msun M_*=25 Msun e=0.15
 orbit 300 Rsun Raccr for BH 13 Rsun
 
 Enter accretion radius for the companion in code units ([0.000:], default=0.000): 13
-Do you want a corotating frame with a corotating binary? (default=no): 
+Do you want a corotating frame with a corotating binary? (default=no):
  reset CofM: (-1.49E-13 -5.59E-14 -4.38E-14 ) -> (-3.52E-17  6.18E-17 -1.70E-17 )
   Got       100000      100000  after deleting accreted particles
 
-  ---------- binary parameters ----------- 
-  primary mass     :    25.0    
+  ---------- binary parameters -----------
+  primary mass     :    25.0
   secondary mass   :   0.100E+07
   mass ratio m2/m1 :   0.400E+05
-  reduced mass     :    25.0    
-  semi-major axis  :    300.    
-  period           :    32.6    
-  eccentricity     :   0.150    
-  pericentre       :    255.    
-  apocentre        :    345.    
+  reduced mass     :    25.0
+  semi-major axis  :    300.
+  period           :    32.6
+  eccentricity     :   0.150
+  pericentre       :    255.
+  apocentre        :    345.
   angular momentum :  0.4281E+06
-  mean ang. speed  :  0.1655    
-  Omega_0 (prim)   :  0.1439    
-  Omega_0 (second) :  0.1439    
-  R_accretion (1)  :   0.000    
-  R_accretion (2)  :   13.00    
-  Roche lobe  (1)  :   4.285    
-  Roche lobe  (2)  :   243.8    
+  mean ang. speed  :  0.1655
+  Omega_0 (prim)   :  0.1439
+  Omega_0 (second) :  0.1439
+  R_accretion (1)  :   0.000
+  R_accretion (2)  :   13.00
+  Roche lobe  (1)  :   4.285
+  Roche lobe  (2)  :   243.8
   ----------------------------------------
 
 tde4 all the same but e=0.5:
- ---------- binary parameters ----------- 
-  primary mass     :    25.0    
+ ---------- binary parameters -----------
+  primary mass     :    25.0
   secondary mass   :   0.100E+07
   mass ratio m2/m1 :   0.400E+05
-  reduced mass     :    25.0    
-  semi-major axis  :    300.    
-  period           :    32.6    
-  eccentricity     :   0.500    
-  pericentre       :    150.    
-  apocentre        :    450.    
+  reduced mass     :    25.0
+  semi-major axis  :    300.
+  period           :    32.6
+  eccentricity     :   0.500
+  pericentre       :    150.
+  apocentre        :    450.
   angular momentum :  0.3750E+06
-  mean ang. speed  :  0.1111    
+  mean ang. speed  :  0.1111
   Omega_0 (prim)   :  0.7407E-01
   Omega_0 (second) :  0.7407E-01
-  R_accretion (1)  :   0.000    
-  R_accretion (2)  :   13.00    
-  Roche lobe  (1)  :   4.285    
-  Roche lobe  (2)  :   243.8    
+  R_accretion (1)  :   0.000
+  R_accretion (2)  :   13.00
+  Roche lobe  (1)  :   4.285
+  Roche lobe  (2)  :   243.8
   ----------------------------------------
 
  tde5 e=0.7
 
- ---------- binary parameters ----------- 
-  primary mass     :    25.0    
+ ---------- binary parameters -----------
+  primary mass     :    25.0
   secondary mass   :   0.100E+07
   mass ratio m2/m1 :   0.400E+05
-  reduced mass     :    25.0    
-  semi-major axis  :    300.    
-  period           :    32.6    
-  eccentricity     :   0.700    
-  pericentre       :    90.0    
-  apocentre        :    510.    
+  reduced mass     :    25.0
+  semi-major axis  :    300.
+  period           :    32.6
+  eccentricity     :   0.700
+  pericentre       :    90.0
+  apocentre        :    510.
   angular momentum :  0.3092E+06
   mean ang. speed  :  0.8085E-01
   Omega_0 (prim)   :  0.4756E-01
   Omega_0 (second) :  0.4756E-01
-  R_accretion (1)  :   0.000    
-  R_accretion (2)  :   13.00    
-  Roche lobe  (1)  :   4.285    
-  Roche lobe  (2)  :   243.8    
+  R_accretion (1)  :   0.000
+  R_accretion (2)  :   13.00
+  Roche lobe  (1)  :   4.285
+  Roche lobe  (2)  :   243.8
   ---------------------------------------
 
 tde6 e=0.9
 
- ---------- binary parameters ----------- 
-  primary mass     :    25.0    
+ ---------- binary parameters -----------
+  primary mass     :    25.0
   secondary mass   :   0.100E+07
   mass ratio m2/m1 :   0.400E+05
-  reduced mass     :    25.0    
-  semi-major axis  :    300.    
-  period           :    32.6    
-  eccentricity     :   0.900    
-  pericentre       :    30.0    
-  apocentre        :    570.    
+  reduced mass     :    25.0
+  semi-major axis  :    300.
+  period           :    32.6
+  eccentricity     :   0.900
+  pericentre       :    30.0
+  apocentre        :    570.
   angular momentum :  0.1887E+06
   mean ang. speed  :  0.4415E-01
   Omega_0 (prim)   :  0.2324E-01
   Omega_0 (second) :  0.2324E-01
-  R_accretion (1)  :   0.000    
-  R_accretion (2)  :   13.00    
-  Roche lobe  (1)  :   4.285    
-  Roche lobe  (2)  :   243.8    
+  R_accretion (1)  :   0.000
+  R_accretion (2)  :   13.00
+  Roche lobe  (1)  :   4.285
+  Roche lobe  (2)  :   243.8
   ----------------------------------------
 
 
@@ -307,7 +307,7 @@ a mkpoly '/home/seb/prg/gitWork/phantom/scripts/writemake.sh polytrope > Makefil
  mkpoly
  make setup
  phantomsetup nsB
- 6) Piecewise polytrope  
+ 6) Piecewise polytrope
 -- выбираем broken polytrop, Eos 9, а там SLy:
  2=SLy
 
@@ -346,7 +346,7 @@ a mkpoly '/home/seb/prg/gitWork/phantom/scripts/writemake.sh polytrope > Makefil
  Radius              =  6.91200E+05 cm     =  6.91200E+00 km
  Mass                =  1.98910E+32 g      =  1.00000E-01 M_sun
 
-For n=2 and requested R=1e4 final 
+For n=2 and requested R=1e4 final
  Radius              =  1.11941E+07 cm     =  1.11941E+02 km
  Mass                =  7.95640E+32 g      =  4.00000E-01 M_sun
  rho_central         =  4.45240E+11 g/cm^3
@@ -366,13 +366,13 @@ using ns04n1_00100 as a second star
  q=   0.50000     RL1=   0.5707515723
  Ry=   0.4399444148      Rz=   0.4142650888
 Тогда расстояние должно быть 270.2 км при заполнении полости Роша малой массой.
-1st run with 300 km 
-2nd run with 320 km 
-3rd run with 400 km 
-4th run with 360 km 
+1st run with 300 km
+2nd run with 320 km
+3rd run with 400 km
+4th run with 360 km
 
 магнитим меньшую звезду:
-phantommoddump ns02n1_00100 magn02n1_00000.tmp 0.0 
+phantommoddump ns02n1_00100 magn02n1_00000.tmp 0.0
 
 phantommoddump magn02n1_00000  magnd360m04m02_00000.tmp 0.0
 

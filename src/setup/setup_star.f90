@@ -262,6 +262,7 @@ subroutine setpart(id,npart,npartoftype,xyzh,massoftype,vxyzu,polyk,gamma,hfact,
  select case(iprofile)
  case(ipoly)
     call rho_polytrope(gamma,polyk,Mstar,r,den,npts,rhocentre,calc_polyk,Rstar)
+    rmin  = r(1)
     pres = polyk*den**gamma
  case(ifromfile)
     call read_rhotab_wrapper(trim(input_profile),ng_max,r,den,npts,&
@@ -407,7 +408,7 @@ subroutine setpart(id,npart,npartoftype,xyzh,massoftype,vxyzu,polyk,gamma,hfact,
  endif
  if (maxvxyzu <= 4) then
     write(*,'(1x,a,f12.5)')       'polyk               = ', polyk
-    write(*,'(1x,a,f10.6,a)')     'specific int. energ = ', polyk*Rstar/Mstar,' GM/R'
+    write(*,'(1x,a,f15.5,a)')     'specific int. energ = ', polyk*Rstar/Mstar,' GM/R'
  endif
  call write_mass('particle mass       = ',massoftype(igas),umass)
  call write_dist('Radius              = ',Rstar,udist)

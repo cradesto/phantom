@@ -128,6 +128,8 @@ Initial field strength (Bzero) =  -1.0000E+13 G ( -5.4905E-08 in code units)
  Velocity:  3.643E+10 cm/s    Bfield:  1.821E+20 G
         G:  1.000E+00              c:  8.229E-01       mu_0:  1.000E+00
 
+ Column Density:  1.989E+23 g/cm^2
+
 масса измеряется в Msun, а длина в км.
 Time unit = sqrt(Length^3/(G_N*Msun))
 

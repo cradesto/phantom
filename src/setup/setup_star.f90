@@ -48,7 +48,7 @@ module setup
 !   - use_exactN        : *find closest particle number to np*
 !   - write_rho_to_file : *write density profile to file*
 !
-! :Dependencies: centreofmass, deriv, dim, domain, eos, eos_idealplusrad,
+! :Dependencies: centreofmass, dim, domain, eos, eos_idealplusrad,
 !   eos_mesa, extern_densprofile, externalforces, infile_utils, io, kernel,
 !   options, part, physcon, prompting, relaxstar, rho_profile,
 !   setsoftenedcore, setstellarcore, setup_params, spherical, table_utils,
@@ -115,7 +115,6 @@ contains
 subroutine setpart(id,npart,npartoftype,xyzh,massoftype,vxyzu,polyk,gamma,hfact,time,fileprefix)
  use setup_params,    only:rhozero,npart_total
  use part,            only:igas,isetphase
- use deriv,           only:get_derivs_global
  use spherical,       only:set_sphere
  use centreofmass,    only:reset_centreofmass
  use table_utils,     only:yinterp,interpolator
@@ -831,6 +830,7 @@ subroutine read_setupfile(filename,gamma,polyk,ierr)
     end select
 
     if (isoftcore > 0) then
+       isinkcore = .true.
        call read_inopt(input_profile,'input_profile',db,errcount=nerr)
        call read_inopt(outputfilename,'outputfilename',db,errcount=nerr)
     endif

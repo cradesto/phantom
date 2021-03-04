@@ -41,7 +41,7 @@ ANALYSIS      = analysis_dtheader.f90
 MULTIRUNFILE  = multirun.f90
 LIVE_ANALYSIS = no
 LINKLIST      = dtype_kdtree.F90 kdtree.F90 linklist_kdtree.F90
-DEBUG         = no
+DEBUG         = yes
 #
 # can comment out the following lines and instead set
 # the parameters as environment variables
@@ -1070,6 +1070,16 @@ ifeq ($(SETUP), nsmerger)
     GRAVITY=yes
     MODFILE=moddump_binarystar.f90
     ANALYSIS=analysis_NSmerger.f90
+    KNOWN_SETUP=yes
+endif
+
+ifeq ($(SETUP), stripping)
+#   single (option 2) or binary (option 3) polytrope test
+    SETUPFILE= setup_star.f90
+    ANALYSIS= analysis_stripping.f90
+    GRAVITY=yes
+    ISOTHERMAL=yes
+    MODFILE=moddump_binarystar.f90
     KNOWN_SETUP=yes
 endif
 

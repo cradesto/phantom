@@ -9,9 +9,9 @@
       "type": "cppdbg",
       "request": "launch",
       "targetArchitecture": "x86_64",
-      "program": "/home/marat/phys/phantom/phantom_test/test_radius_poly_n1/phantomsetup",
+      "program": "/home/marat/phys/phantom/phantom_test/test/phantomanalysis",
       "args": [
-        "star"
+        "/home/marat/phys/phantom/phantom_test/test/binary_00000"
       ],
       "internalConsoleOptions": "openOnSessionStart",
       "logging": {

@@ -29,7 +29,7 @@ program phantomanalysis
  integer            :: nargs,iloc,ierr,iarg,i
  real               :: time
  logical            :: iexist
- character(len=120) :: dumpfile,fileprefix,infile
+ character(len=1000) :: dumpfile,fileprefix,infile
  type(inopts), dimension(:), allocatable :: db
 
  call set_io_unit_numbers

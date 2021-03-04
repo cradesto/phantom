@@ -32,8 +32,8 @@
       "command": "make",
       "args": [
         "-C",
-        "/home/marat/phys/phantom/phantom_test/test_radius_poly_n1/",
-        "setup"
+        "/home/marat/phys/phantom/phantom_test/test/",
+        "analysis"
       ],
       "group": {
         "kind": "build",
@@ -52,7 +52,7 @@
       "command": "make",
       "args": [
         "-C",
-        "/home/marat/phys/phantom/phantom_test/test_radius_poly_n1/",
+        "/home/marat/phys/phantom/phantom_test/test/",
         "clean"
       ],
       "group": {

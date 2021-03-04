@@ -92,7 +92,7 @@ contains
         8, 'd',    &
         9, 'm_A',  &
         10,'m_B',  &
-        11,'m'
+        11,'dm'
     else
       open(iunit,file=fileout,position='append')
     endif
@@ -123,7 +123,7 @@ contains
 
     write(iunit,'(11(es18.10,1x))') time, xposA, xposB, sep,&
       npartA*particlemass, npartB*particlemass,&
-      npartA*particlemass + npartB*particlemass
+      abs(npartA*particlemass - npartB*particlemass)
 
     close(iunit)
 

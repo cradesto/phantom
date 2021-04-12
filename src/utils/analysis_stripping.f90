@@ -4,12 +4,16 @@
 ! See LICENCE file for usage and distribution conditions                   !
 ! http://phantomsph.bitbucket.io/                                          !
 !--------------------------------------------------------------------------!
+
+! #define LAPACK
+
 module analysis
 !
 ! analysis programmes used to analys a neutron star merger.
 !  This is an interactive routine that includes multiple analysis options
 !  Note: all outputs are in code units unless explicitly stated
 !  Author: Bernard Field & Madeline Marshall (supervisors: James Wurster & Paul Lasky)
+!  Changes for stripping were done by Marat Potashov
 !
 ! :References: None
 !
@@ -26,8 +30,10 @@ module analysis
   use centreofmass,    only: get_centreofmass
   use readwrite_dumps, only: opened_full_dump
   use extern_gwinspiral, only:Nstar
+
   implicit none
-  character(len=20), parameter, public :: analysistype = 'NSmerger'
+
+  character(len=20), parameter, public :: analysistype = 'Stripping'
   !
   integer, parameter, private :: nana_opts          = 20
   real,               private :: density_cutoff_cgs = 5.0d-5     ! The density threshhold in code units (opts 2,3,4)
@@ -43,6 +49,7 @@ module analysis
   !
   private :: trace_com,calculate_TW,calculate_I,calculate_midplane_profile
   private :: get_momentofinertia,jacobi
+
   public  :: do_analysis
 
   private
@@ -127,6 +134,14 @@ contains
 
     close(iunit)
 
+    !--Calculate the centre of mass and velocity of the system
+    !
+    call get_centreofmass(com,vcom,npart,xyzh,vxyzu)
+
+    !--Calculate the moment of inertia tensor
+    density_cutoff = density_cutoff_cgs / unit_density
+    call calculate_I(dumpfile,xyzh,time,npart,iunit,particlemass)
+
     ! if ( firstcall ) then
     !   analysis_opt(:) = 'none'
     !   analysis_opt(1) = 'Trace centre of mass of each star and the system'
@@ -190,6 +205,7 @@ contains
 !+
 !-----------------------------------------------------------------------
   subroutine trace_com(dumpfile,xyzh,vxyzu,time,npart,iunit)
+
     character(len=*), intent(in) :: dumpfile
     integer,          intent(in) :: npart,iunit
     real,             intent(in) :: xyzh(:,:),vxyzu(:,:)
@@ -233,6 +249,7 @@ contains
 !+
 !-----------------------------------------------------------------------
   subroutine calculate_TW(dumpfile,xyzh,vxyzu,time,npart,iunit,particlemass)
+
     character(len=*), intent(in) :: dumpfile
     integer,          intent(in) :: npart,iunit
     real,             intent(in) :: xyzh(:,:),vxyzu(:,:)
@@ -341,6 +358,7 @@ contains
 !+
 !-----------------------------------------------------------------------
   subroutine calculate_I(dumpfile,xyzh,time,npart,iunit,particlemass)
+
     character(len=*), intent(in) :: dumpfile
     integer,          intent(in) :: npart,iunit
     real,             intent(in) :: xyzh(:,:)
@@ -406,7 +424,9 @@ contains
 !+
 !-----------------------------------------------------------------------
   subroutine calculate_midplane_profile(dumpfile,xyzh,vxyzu,npart,iunit,particlemass)
+
     use part, only: alphaind
+
     character(len=*), intent(in) :: dumpfile
     integer,          intent(in) :: npart,iunit
     real,             intent(in) :: xyzh(:,:),vxyzu(:,:)
@@ -567,14 +587,16 @@ contains
 !
   end subroutine calculate_midplane_profile
 !-----------------------------------------------------------------------
-!-----------------------------------------------------------------------
 !+
 ! Calculates the moment of inertia
 ! This is done about the coordinate axes whose origin is at the
-! centre of mass
+!   centre of mass
+! Mechanics, Third Edition: Volume 1 (Course of Theoretical Physics)
+!   L. Landau, and E. Lifshitz. eq. 32.6
 !+
 !-----------------------------------------------------------------------
   subroutine get_momentofinertia(xyzh,npart,npartused,principle,evectors,particlemass,rmax)
+
     integer,          intent(in)  :: npart
     integer,          intent(out) :: npartused
     real,             intent(in)  :: xyzh(:,:)
@@ -582,6 +604,9 @@ contains
     real,             intent(out) :: principle(3), evectors(3,3),rmax
     integer                       :: i
     real                          :: inertia(3,3)
+#ifdef LAPACK
+    real                          :: inertia2(3,3)
+#endif
     real                          :: x,y,z,r2,rmax2
     !
     inertia   = 0.
@@ -612,11 +637,80 @@ contains
     !--Multiply in constant
     inertia      = inertia*particlemass
     !
+#ifdef LAPACK
+    inertia2 = inertia
+#endif
+    !
     !--Find the eigenvectors
     !  note: i is a dummy out-integer that we don't care about
     call jacobi(inertia,3,3,principle,evectors,i)
+    write(*,*) 'Eigenvalues JACOBI:'
+    do i = 1, 3
+      write(*,*) i, principle(i)
+    enddo
+    write(*,*)
+    write(*,*) 'Eigenvectors JACOBI:'
+    do i = 1, 3
+      write(*,*) i, evectors(:,i)
+    enddo
+    write(*,*)
+    !
+#ifdef LAPACK
+    call eigensystem(inertia2,3,principle)
+#endif
     !
   end subroutine get_momentofinertia
+!-----------------------------------------------------------------------
+!+
+! LAPACK: DSYEV computes the eigenvalues and, optionally,
+!   the left and/or right eigenvectors for SY matrices
+! Calls the LAPACK diagonalization subroutine DSYEV
+! input:  a(n,n) = real symmetric matrix to be diag
+!         n  = size of a
+! output: a(n,n) = orthonormal eigenvectors of a
+!         v(n) = eigenvalues of a in ascending order
+!+
+!-----------------------------------------------------------------------
+#ifdef LAPACK
+  subroutine eigensystem(a,n,v)
+
+    integer, intent(in)    :: n
+    real,    intent(inout) :: a(n,n)
+    real,    intent(out) :: v(n)
+
+    integer :: lda
+    real(kind=8) :: work(3*n-1)
+    integer :: lwork
+    integer :: info
+    integer :: i
+
+    info = 0
+    lda = n
+    lwork = 3*n-1
+    call dsyev('V','U',n,a,lda,v,work,lwork,info)
+    if (info < 0) then
+      write(*,'(a, i3, a)') "INFO = ", info,&
+        " the i-th argument had an illegal value"
+    else if (info < 0) then
+      write(*,'(a, i3, a)') "INFO = ", info,&
+        " the algorithm failed to converge;&
+        & i off-diagonal elements of an intermediate tridiagonal&
+        & form did not converge to zero."
+    endif
+
+    write(*,*) 'Eigenvalues LAPACK:'
+    do i = 1, n
+      write(*,*) i, v(i)
+    enddo
+    write(*,*)
+    write(*,*) 'Eigenvectors LAPACK:'
+    do i = 1, n
+      write(*,*) i, a(:,i)
+    enddo
+    write(*,*)
+
+  end subroutine eigensystem
+#endif
 !-----------------------------------------------------------------------
 !+
 ! Calculates the Jacobian
@@ -624,6 +718,7 @@ contains
 !+
 !-----------------------------------------------------------------------
   subroutine jacobi(a,n,np,d,v,nrot)
+
     integer, intent(in)    :: n,np
     integer, intent(out)   :: nrot
     real,    intent(inout) :: a(np,np)
@@ -631,15 +726,16 @@ contains
     integer, parameter :: nmax = 500
 !
 ! Computes all eigenvalues and eigenvectors of a real symmetric matrix, a,
-! whichisofsize n by n, stored in a physical np by np array.
+!   which is of size n by n, stored in a physical np by np array.
 ! On output, elements of a above the diagonal are destroyed.
 ! d returns the eigenvalues of a in its first n elements.
-! v is a matrix with the same logical  and  physical  dimensions  as a,
-! whose  columns  contain,  on  output,  the  normalized eigenvectors of a.
-! nrot returns the number  of Jacobi rotations that were required.
+! v is a matrix with the same logical and physical dimensions as a,
+!   whose columns contain, on output, the normalized eigenvectors of a.
+! nrot returns the number of Jacobi rotations that were required.
 !
     integer :: i,ip,iq,j
     real ::  c,g,h,s,sm,t,tau,theta,tresh,b(NMAX),z(NMAX)
+
     do 12, ip=1,n  !Initialize  to  the  identity  matrix.
       do 11, iq=1,n
         v(ip,iq)=0.
@@ -663,7 +759,8 @@ contains
           sm=sm+abs(a(ip,iq))
 14      enddo
 15    enddo
-      if (sm==0.)return
+      if (sm==0.)&
+        return
 !The normal return, which relies on quadratic convergence to machine  underflow.
       if (i < 4) then
         tresh=0.2*sm/n**2

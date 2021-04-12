@@ -71,6 +71,7 @@ LIBCXX = -lstdc++
 LDFLAGS=
 SRCPHOTO=
 LIBTOOL=libtool
+LAPACK=
 
 #----------------------------------------------------------------
 # here follows specific configuration options used
@@ -1081,6 +1082,7 @@ ifeq ($(SETUP), stripping)
     ISOTHERMAL=yes
     MODFILE=moddump_binarystar.f90
     KNOWN_SETUP=yes
+    LAPACK=yes
 endif
 
 ifeq ($(SETUP), evrard)
@@ -2072,6 +2074,10 @@ ANALYSISBIN=phantomanalysis
 endif
 
 .PHONY: phantomanalysis
+ifeq ($(LAPACK), yes)
+phantomanalysis: LDFLAGS+= -L/usr/lib/x86_64-linux-gnu/lapack -llapack \
+                            -L/usr/lib/x86_64-linux-gnu/blas -lblas
+endif
 phantomanalysis: checksystem checkparams $(OBJA) phantomanalysis.o
 	@echo ""
 	@echo "phantomanalysis: we live to serve you"

@@ -11,7 +11,7 @@
       "targetArchitecture": "x86_64",
       "program": "/home/marat/phys/phantom/phantom_test/test/phantomanalysis",
       "args": [
-        "/home/marat/phys/phantom/phantom_test/test/binary_00000"
+        "/home/marat/phys/phantom/phantom_test/test/binary_00100"
       ],
       "internalConsoleOptions": "openOnSessionStart",
       "logging": {

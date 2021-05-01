@@ -36,16 +36,21 @@ module analysis
   character(len=20), parameter, public :: analysistype = 'Stripping'
   !
   integer, parameter, private :: nana_opts          = 20
-  real,               private :: density_cutoff_cgs = 5.0d-5     ! The density threshhold in code units (opts 2,3,4)
+  real,               private :: density_cutoff_cgs = 5.0d-5     ! The density threshold in code units (opts 2,3,4)
   real,               private :: thickness          = 2.0
   real,               private :: dtheta             = 5.*pi/180. ! width of slice in the directions of the minor and major axes (opt 4)
+
   logical,            private :: firstcall          = .true.
   !
-  integer,            private :: choice
+  ! integer,            private :: choice
   real,               private :: density_cutoff
   real,               private :: com(3),vcom(3),com1(3),com2(3),vcom1(3),vcom2(3)
   logical,            private :: iexist
   character(len=200), private :: fileout,analysis_opt(nana_opts)
+
+  real,               private, save :: evectors_old(3)
+  real,               private, save :: omega_old(3)
+  real,               private, save :: time_old
   !
   private :: trace_com,calculate_TW,calculate_I,calculate_midplane_profile
   private :: get_momentofinertia,jacobi
@@ -61,18 +66,34 @@ contains
     use dim,          only: maxp, maxvxyzu
     use centreofmass, only: get_centreofmass,reset_centreofmass
     use prompting,    only: prompt
-    use units,        only: unit_density
+    use units,        only: unit_density, udist, print_units
 
-    character(len=*), intent(in) :: dumpfile
-    integer,          intent(in) :: num,npart,iunit
-    real,             intent(inout) :: xyzh(:,:),vxyzu(:,:)
-    real,             intent(in) :: particlemass,time
-    integer                      :: i, iA, iB
+    use part,         only: gradh, poten, fxyzu
 
-    real(kind=8)                 :: xposA(3),xposB(3),vpos(3),sep
-    integer                      :: npartA, npartB
-    real                         :: xyzhA(4,maxp), vxyzuA(maxvxyzu,maxp)
-    real                         :: xyzhB(4,maxp), vxyzuB(maxvxyzu,maxp)
+    character(len=*), intent(in)    :: dumpfile
+    integer,          intent(in)    :: num,npart,iunit
+    real,             intent(inout) :: xyzh(:,:), vxyzu(:,:)
+    real,             intent(in)    :: particlemass,time
+
+    integer                         :: i, iA, iB
+
+    real(kind=8)                    :: xposA(3),xposB(3),vpos(3),sep
+    integer                         :: npartA, npartB
+    real                            :: xyzhA(4,maxp), vxyzuA(maxvxyzu,maxp)
+    real                            :: xyzhB(4,maxp), vxyzuB(maxvxyzu,maxp)
+
+    integer                         :: k
+    real                            :: point(3)
+    real                            :: p
+    real                            :: xyzh2(maxp)
+    real                            :: f
+    real                            :: df
+    real                            :: potential
+
+    ! real                            :: fgrav(maxvxyzu,maxp)
+    ! real                            :: phitot
+
+    call print_units()
 
     !
     !--Determine which analysis to run if this is the first step
@@ -140,7 +161,25 @@ contains
 
     !--Calculate the moment of inertia tensor
     density_cutoff = density_cutoff_cgs / unit_density
-    call calculate_I(dumpfile,xyzh,time,npart,iunit,particlemass)
+    call calculate_I(dumpfile,xyzh,vxyzu,time,npart,iunit,particlemass)
+
+    k = 0
+    do i = 1, npart
+      if(distance_to_line(evectors_old, xyzh(1:3,i)) <= 0.2) then
+        k = k + 1
+        xyzh2(k) = dot_product(xyzh(1:3,i), evectors_old)
+        write(10000,*) time, xyzh(1:3,i), poten(i), xyzh2(k), norm2(xyzh(1:3,i))
+      endif
+    enddo
+
+    p = 0.
+    do i = 1, 101
+      p = 0. + 40./100.*(i-1)
+      point = p*evectors_old
+      call gravitational_force(p, xyzh, particlemass, npart, f, df)
+      call gravitational_potential(p, xyzh, particlemass, npart, potential)
+      write(10001,*) time, point, p, f, df, potential
+    enddo
 
     ! if ( firstcall ) then
     !   analysis_opt(:) = 'none'
@@ -198,7 +237,6 @@ contains
     if (firstcall) firstcall = .false. ! performed here since multiple commands require this knowledge
 
   end subroutine do_analysis
-!-----------------------------------------------------------------------
 !-----------------------------------------------------------------------
 !+
 ! Trace centre of mass of each star and the system
@@ -355,24 +393,32 @@ contains
 !  Determines the moment of inertia tensor, in diagonalised form.
 !  Can exclude particles which are below a specified cut-off density.
 !  Will output the mass and radius of the measured area.
+!  Will output the eigenvalues and eigenvectors of inertia tensor
+!   and L1 point coordinates
 !+
 !-----------------------------------------------------------------------
-  subroutine calculate_I(dumpfile,xyzh,time,npart,iunit,particlemass)
+  subroutine calculate_I(dumpfile,xyzh,vxyzu,time,npart,iunit,particlemass)
 
     character(len=*), intent(in) :: dumpfile
     integer,          intent(in) :: npart,iunit
-    real,             intent(in) :: xyzh(:,:)
+    real,             intent(in) :: xyzh(:,:), vxyzu(:,:)
     real,             intent(in) :: particlemass,time
+
     integer                      :: i,npartused
-    real                         :: rmax,bigI,medI,smallI
+    real                         :: rmax,smallI,medI,bigI
+    integer                      :: smallIIndex, middleIIndex, bigIIndex
     real                         :: principle(3),evectors(3,3),ellipticity(2)
+    real                         :: omega(3)
+    real                         :: omega_mean(3)
+    real                         :: L1(3)
+
     !
     !--Open file (appendif exists)
     fileout = trim(dumpfile(1:INDEX(dumpfile,'_')-1))//'_inertia.dat'
     inquire(file=fileout,exist=iexist)
     if ( firstcall .or. .not.iexist ) then
       open(iunit,file=fileout,status='replace')
-      write(iunit,"('#',18(1x,'[',i2.2,1x,a11,']',2x))") &
+      write(iunit,"('#',25(1x,'[',i2.2,1x,a11,']',2x))") &
         1,'time',&
         2,'I1',  &
         3,'I2',  &
@@ -388,9 +434,16 @@ contains
         13,'v3,1',&
         14,'v3,2',&
         15,'v3,3',&
-        16,'excluded parts',&
-        17,'mstar',     &
-        18,'rstar'
+        16,'ang v1',&
+        17,'ang v2',&
+        18,'ang v3',&
+        19,'ang v',&
+        20,'L1,1',&
+        21,'L1,2',&
+        22,'L1,3',&
+        23,'excluded parts',&
+        24,'mstar',     &
+        25,'rstar'
     else
       open(iunit,file=fileout,position='append')
     endif
@@ -399,25 +452,101 @@ contains
     call get_momentofinertia(xyzh,npart,npartused,principle,evectors,particlemass,rmax)
     !
     !--Sort the principle moments, since ellipticity depends on it.
-    bigI   = maxval(principle)
-    smallI = minval(principle)
-    medI   = 0.5*(bigI+smallI)  ! to avoid compiler warning
-    do i=1,3
-      if (smallI < principle(i) .and. principle(i) < bigI) medI = principle(i)
-    enddo
+    smallIIndex = minloc(principle, dim=1)
+    bigIIndex = maxloc(principle, dim=1)
+    middleIIndex = 6 - smallIIndex - bigIIndex
+
+    smallI = principle(smallIIndex)
+    medI   = principle(middleIIndex)
+    bigI   = principle(bigIIndex)
+
     ellipticity(1) = sqrt(2.0*(bigI-smallI)/smallI)
-    ellipticity(2) = sqrt(2.0*(bigI-medI ) /medI  )
-    !
+    ellipticity(2) = sqrt(2.0*(bigI-medI)/medI)
+
+    ! Calculate omega
+    omega = calculate_omega(smallIIndex, evectors, time)
+    write(*,*) "Omega coords = ", omega
+    write(*,*) "Omega norm2 = ", norm2(omega)
+
+    ! NB: only for full dumpfile
+    omega_mean = calculate_mean_omega(npart, xyzh, vxyzu)
+    write(*,*) "Mean Omega coords = ", omega_mean
+    write(*,*) "Mean Omega norm2 = ", norm2(omega_mean)
+
+    L1 = L1_point(2, xyzh, particlemass, npart)
+
     !--Write to file
-    write(iunit,'(18(es18.10,1x))') &
-      time,principle(1),principle(2),principle(3),&
-      ellipticity(1),ellipticity(2),&
-      evectors(1,1),evectors(2,1),evectors(3,1),&
-      evectors(1,2),evectors(2,2),evectors(3,2),&
-      evectors(1,3),evectors(2,3),evectors(3,3),&
-      real(npart-npartused),npartused*particlemass,rmax
-    !
+    write(iunit,'(25(es18.10,1x))') &
+      time, principle(smallIIndex), principle(middleIIndex), principle(bigIIndex),&
+      ellipticity(1), ellipticity(2),&
+      evectors(1,smallIIndex), evectors(2,smallIIndex), evectors(3,smallIIndex),&
+      evectors(1,middleIIndex), evectors(2,middleIIndex), evectors(3,middleIIndex),&
+      evectors(1,bigIIndex), evectors(2,bigIIndex), evectors(3,bigIIndex),&
+      omega(1), omega(2), omega(3), norm2(omega),&
+      L1(1), L1(2), L1(3),&
+      real(npart-npartused), npartused*particlemass, rmax
+
   end subroutine calculate_I
+!-----------------------------------------------------------------------
+! Function for finding omega vector from changes of the eigenvector
+!  that correspond to the smallest eigenvalue
+!-------------------------------------------------------------
+  function calculate_omega(index,evectors,time) result(omega)
+
+    use vectorutils, only:cross_product3D
+
+    integer,          intent(in) :: index
+    real,             intent(inout) :: evectors(3,3)
+    real,             intent(in) :: time
+
+    real                         :: omega(3)
+    real                         :: dRdt(3)
+
+    ! Calculate omega
+    dRdt = 0.
+    omega = 0.
+
+    if(.not. firstcall .and. time > time_old) then
+      dRdt = (evectors(:, index) - evectors_old)/(time - time_old)
+      call cross_product3D(evectors(:, index),dRdt,omega)
+      ! NB: change sign of evectors if need it
+      if(omega_old(3)*omega(3) < 0.0) then
+        evectors(:,index) = -1.*evectors(:,index)
+        dRdt = (evectors(:, index) - evectors_old)/(time - time_old)
+        call cross_product3D(evectors(:, index),dRdt,omega)
+      endif
+      omega = omega/(norm2(evectors(:, index))**2)
+    endif
+
+    evectors_old = evectors(:, index)
+    omega_old = omega
+    time_old = time
+
+  end function calculate_omega
+!-------------------------------------------------------------
+! Function to find mean omega vector from a list
+! of positions and velocities
+!-------------------------------------------------------------
+  function calculate_mean_omega(n,xyz,vxyz) result(l)
+
+    use vectorutils, only:cross_product3D
+
+    integer, intent(in) :: n
+    real,    intent(in) :: xyz(:,:),vxyz(:,:)
+    real    :: l(3)
+
+    real    :: li(3)
+    integer :: i
+
+    l = 0.
+    do i=1,n
+      call cross_product3D(xyz(:,i),vxyz(:,i),li)
+      li = li/norm2(xyz(:,i))**2
+      l = l + li
+    enddo
+    l = l/real(n)
+
+  end function calculate_mean_omega
 !-----------------------------------------------------------------------
 !+
 !  Determines the radial profile of the midplane (of a given thickness)
@@ -643,20 +772,36 @@ contains
     !
     !--Find the eigenvectors
     !  note: i is a dummy out-integer that we don't care about
+    !
+#ifndef LAPACK
     call jacobi(inertia,3,3,principle,evectors,i)
-    write(*,*) 'Eigenvalues JACOBI:'
+
+    ! write(*,*) 'Eigenvalues JACOBI:'
+    ! do i = 1, 3
+    !   write(*,*) i, principle(i)
+    ! enddo
+    ! write(*,*)
+    ! write(*,*) 'Eigenvectors JACOBI:'
+    ! do i = 1, 3
+    !   write(*,*) i, evectors(:,i)
+    ! enddo
+    ! write(*,*)
+#else
+    call eigensystem(inertia,3,principle)
+    evectors = inertia
+    ! call eigensystem(inertia2,3,principle)
+    ! evectors = inertia2
+
+    write(*,*) 'Eigenvalues LAPACK:'
     do i = 1, 3
       write(*,*) i, principle(i)
     enddo
     write(*,*)
-    write(*,*) 'Eigenvectors JACOBI:'
+    write(*,*) 'Eigenvectors LAPACK:'
     do i = 1, 3
       write(*,*) i, evectors(:,i)
     enddo
     write(*,*)
-    !
-#ifdef LAPACK
-    call eigensystem(inertia2,3,principle)
 #endif
     !
   end subroutine get_momentofinertia
@@ -694,20 +839,9 @@ contains
     else if (info < 0) then
       write(*,'(a, i3, a)') "INFO = ", info,&
         " the algorithm failed to converge;&
-        & i off-diagonal elements of an intermediate tridiagonal&
-        & form did not converge to zero."
+      & i off-diagonal elements of an intermediate tridiagonal&
+      & form did not converge to zero."
     endif
-
-    write(*,*) 'Eigenvalues LAPACK:'
-    do i = 1, n
-      write(*,*) i, v(i)
-    enddo
-    write(*,*)
-    write(*,*) 'Eigenvectors LAPACK:'
-    do i = 1, n
-      write(*,*) i, a(:,i)
-    enddo
-    write(*,*)
 
   end subroutine eigensystem
 #endif
@@ -734,7 +868,7 @@ contains
 ! nrot returns the number of Jacobi rotations that were required.
 !
     integer :: i,ip,iq,j
-    real ::  c,g,h,s,sm,t,tau,theta,tresh,b(NMAX),z(NMAX)
+    real :: c,g,h,s,sm,t,tau,theta,tresh,b(NMAX),z(NMAX)
 
     do 12, ip=1,n  !Initialize  to  the  identity  matrix.
       do 11, iq=1,n
@@ -836,5 +970,386 @@ contains
 24  enddo
     return
   end subroutine jacobi
+!-----------------------------------------------------------------------
+! line - is a unit vector in the direction of the line
+! point - vector to the point
+!-----------------------------------------------------------------------
+  real function distance_to_line(line, point) result(d)
+
+    ! use vectorutils, only:cross_product3D
+
+    real, intent(in) :: line(3), point(3)
+
+    real :: p, vd(3)
+
+    p = dot_product(-point, line)
+    vd = -point - p*line
+    d = norm2(vd)
+
+    ! or
+
+    ! call cross_product3D(-point,line,vd)
+    ! d = norm2(vd)/norm2(line)
+
+  end function distance_to_line
+!-----------------------------------------------------------------------
+  real function interpolate_potential_lagrange(p, x, y, npoints) result(phi)
+
+    real,    intent(in) :: p
+    real,    intent(in) :: x(:)
+    real,    intent(in) :: y(:)
+    integer, intent(in) :: npoints
+
+    integer             :: i, k
+    real                :: g
+
+    real                :: g1
+    real                :: g2
+
+    phi = 0.
+    do i = 1, npoints
+      g = 1.
+      do k = 1, npoints
+        if(k /= i) then
+          g1 = p - x(k)
+          g2 = x(i) - x(k)
+          g = g*g1/g2
+        endif
+      enddo
+      phi = phi + y(i)*g
+    enddo
+
+  end function interpolate_potential_lagrange
+!-----------------------------------------------------------------------
+  subroutine gravitational_potential(p, xyzh, particlemass, npart, potential)
+
+    real,           intent (in)  :: p
+    integer,        intent (in)  :: npart
+    real,           intent (in)  :: xyzh(4,npart)
+    real,           intent (in)  :: particlemass
+    real,           intent (out) :: potential
+
+    integer                      :: i
+    real(kind=8)                 :: point(3)
+    real(kind=8)                 :: dpoint(3)
+    real(kind=8)                 :: dr ! 1/sqrt(r^2)
+
+    potential = 0.
+
+    point = p*evectors_old
+
+    do i = 1, npart
+
+      dpoint = point - xyzh(1:3,i)
+      dr = 1./norm2(dpoint)
+      potential = potential - dr
+
+    enddo
+
+    potential = potential*particlemass
+
+  end subroutine gravitational_potential
+!-----------------------------------------------------------------------
+  subroutine gravitational_force(p, xyzh, particlemass, npart, force, dforce)
+
+    real,           intent (in)  :: p
+    integer,        intent (in)  :: npart
+    real,           intent (in)  :: xyzh(4,npart)
+    real,           intent (in)  :: particlemass
+    real,           intent (out) :: force
+    real,           intent (out) :: dforce
+
+    integer                      :: i
+    real(kind=8)                 :: point(3)
+    real(kind=8)                 :: dpoint(3)
+    real(kind=8)                 :: f(3)
+    real(kind=8)                 :: df(6)
+    real(kind=8)                 :: dr  ! 1/sqrt(r^2)
+    real(kind=8)                 :: dr3 ! 1/sqrt(r^2)^3
+    real(kind=8)                 :: dr5 ! 1/sqrt(r^2)^5
+
+    force = 0.
+    dforce = 0.
+
+    f = 0.
+    df = 0.
+
+    point = p*evectors_old
+
+    do i = 1, npart
+
+      dpoint = point - xyzh(1:3,i)
+      dr = 1./norm2(dpoint)
+      dr3 = dr*dr*dr
+      dr5 = dr3*dr*dr
+
+      f = f - dpoint*dr3
+
+      ! NB: Check for correctness
+      df(1) = df(1) + dr5*(3.*dpoint(1)*dpoint(1) - 1.) ! dfx/dx
+      df(2) = df(2) + dr5*(3.*dpoint(1)*dpoint(2))      ! dfx/dy = dfy/dx
+      df(3) = df(3) + dr5*(3.*dpoint(1)*dpoint(3))      ! dfx/dz = dfz/dx
+      df(4) = df(4) + dr5*(3.*dpoint(2)*dpoint(2) - 1.) ! dfy/dy
+      df(5) = df(5) + dr5*(3.*dpoint(2)*dpoint(3))      ! dfy/dz = dfz/dy
+      df(6) = df(6) + dr5*(3.*dpoint(3)*dpoint(3) - 1.) ! dfz/dz
+
+    enddo
+
+    force = norm2(f)*particlemass
+    dforce = norm2(df)*particlemass
+
+  end subroutine gravitational_force
+!-----------------------------------------------------------------------
+! Finding the zero of gravitational force by Newton method
+! Due to the noise in the function this method is unsuccessful
+!-----------------------------------------------------------------------
+  subroutine newton_method(p, xyzh, particlemass, pNew, fNew, residual, npart)
+
+    real,    intent(in) :: p
+    integer, intent(in)  :: npart
+    real,    intent(in)  :: xyzh(4,npart)
+    real,    intent(in)  :: particlemass
+    real,    intent(out) :: fNew, residual
+
+    real                 :: pNew, f, df
+
+    ! compute function value evaluated at x
+    call gravitational_force(p, xyzh, particlemass, npart, f, df)
+
+    ! numerical second derivative
+    ! write(*,*) p, f, df
+    ! pNew = p + 1.e-4
+    ! call gravitational_force(pNew, xyzh, particlemass, npart, fNew, df)
+    ! df = (fNew - f)/(pNew - p)
+    ! write(*,*) pNew, f, df
+    ! stop
+
+    ! Exit if f' is near or become zero
+    if (abs(df) < 1.e-12) then
+      print *, '[Error: newton_method] Function derivative becomes very close to zero or zero.'
+      print *, 'f=',f, 'df/dp =',df
+      print *, 'Aborting now in order to avoid division by zero.'
+      stop
+    end if
+
+    ! Algorithm
+    pNew = p - f/df
+    fNew = f
+
+    ! Search fails if a newly updated value x is out of the search domain
+    ! if ((pNew < pBeg) .or. (pNew > pEnd)) then
+    !   print *, '[Error: newton_method] pNew',pNew, 'is out of domain.'
+    !   print *, 'Failed in search. Aborting now.'
+    !   stop
+    ! end if
+
+    ! Calculate a new residual
+    residual = abs(pNew - p)
+
+  end subroutine newton_method
+!-----------------------------------------------------------------------
+! The golden-section search is a technique for finding an extremum
+!   (minimum or maximum) of a function inside a specified interval.
+! The implementation is based on the more robust approach described in
+!   V.G. Karmanov Mathematical programming, Moscow: FML, 2008, pp. 134-142.
+!-----------------------------------------------------------------------
+  real function golden_section_search_method(a, b, xyzh, particlemass, npart, eps, err, extr, maxIter, Nest, iter)
+
+    real,    intent(in)  :: a, b        ! left and right boundaries
+    ! of the extremum search interval
+    integer, intent(in)  :: npart
+    real,    intent(in)  :: xyzh(4,npart)
+    real,    intent(in)  :: particlemass
+    real,    intent(in)  :: eps        ! specified accuracy
+
+    real,    intent(out) :: err        ! achieved accuracy
+    integer, intent(out) :: extr       ! extremum type: 1 - minimum; -1 - maximum
+
+    integer, intent(in)  :: maxIter
+    integer, intent(out) :: iter, Nest ! number of iterations actually made
+    ! and their lower bound
+
+    real                 :: q = 0.5d0*(sqrt(5.0d0)-1.0d0),&
+      alpha, fy0, fz0,&
+      a0, a1, b0, b1, y0,&
+      y1, z0, z1, d0, d1, d2, d3, d10
+    integer              :: nfail
+!
+    iter = 1
+    err = 1.0d0
+    nfail = 0
+    Nest = int(log(eps/(b-a))/log(q))
+    alpha = 0.8d0
+
+    call gravitational_potential(a, xyzh, particlemass, npart, fy0)
+    call gravitational_potential(a+eps, xyzh, particlemass, npart, fz0)
+    if (fy0 > fz0) then
+      extr = 1         ! looking for a minimum
+    else
+      extr = -1        ! looking for a maximum
+    end if
+! step 1
+    a0 = a
+    b0 = b
+! step 2
+    do
+      d10 = d1
+      d0 = b0-a0
+      d1 = q*d0
+      d2 = d0-d1
+! checking if precision is achieved (algorithm loops)
+      if (abs(d1-d10) <= epsilon(1.0d0) .and. iter > maxIter) then
+        nfail = nfail+1
+! exit after two consecutive non-decreasing precision
+        if (nfail >= 2) then
+          err = d1
+          golden_section_search_method = 0.5d0*(a1+b1)
+          return
+        end if
+      else
+        nfail = 0
+      end if
+
+      y0 = a0+d2
+      z0 = b0-d2
+
+      call gravitational_potential(y0, xyzh, particlemass, npart, fy0)
+      call gravitational_potential(z0, xyzh, particlemass, npart, fz0)
+! step 3
+      do
+        iter = iter+1
+        d3 = d1-d2
+
+        if (extr*fy0 <= extr*fz0) then
+          a1 = a0
+          b1 = z0
+          z1 = y0
+          y1 = a1+d3
+          fz0 = fy0
+          call gravitational_potential(y1, xyzh, particlemass, npart, fy0)
+
+          if (y1 >= z1) then
+            a0 = a1
+            b0 = b1
+            exit   ! to step 2
+          end if
+        else
+          a1 = y0
+          b1 = b0
+          y1 = z0
+          z1 = b1-d3
+          fy0 = fz0
+          call gravitational_potential(z1, xyzh, particlemass, npart, fz0)
+
+          if (z1 <= y1) then
+            a0 = a1
+            b0 = b1
+            exit   ! to step 2
+          end if
+
+        end if
+! step 4
+        if (d1 <= eps) then
+          golden_section_search_method = 0.5d0*(a1+b1)
+          err = d1
+          return
+        else
+
+          if (d1 <= alpha*d0) then
+            a0 = a1
+            b0 = b1
+            y0 = y1
+            z0 = z1
+            d1 = d2
+            d2 = d3
+            cycle ! to step 3
+          else  ! d1 > eps .and. d1 > alpha**d0)
+            a0 = a1
+            b0 = b1
+            exit ! to step 2
+          end if
+
+        end if
+
+      end do
+
+    end do
+
+  end function golden_section_search_method
+!-----------------------------------------------------------------------
+  function L1_point(method, xyzh, particlemass, npart) result(L1)
+
+    integer, intent(in)  :: method ! 1 - Newton, 2 - Golden Section Search
+    integer, intent(in)  :: npart
+    real,    intent(in)  :: xyzh(4,npart)
+    real,    intent(in)  :: particlemass
+
+    real                 :: L1(3)
+
+    integer              :: nIter
+    integer, parameter   :: maxIter = 10
+    real,    parameter   :: threshold = 1e-6
+
+    ! for Newton's method
+    real                 :: p, pNew, residual, f, df
+
+    ! for Golden section search method
+    real                 :: p1, p2
+    integer              :: nest, extr
+    real                 :: eps, err
+
+    L1 = 0.
+
+    ! Initial values for residual and number of iteration
+    residual = 1.e10
+    nIter = 1
+
+    p = 0.
+
+    if(method == 1) then
+      ! Keep search iteration until
+      ! (a) residual is bigger then a user-defined threshold value, and
+      ! (b) iteration number is less than a user-defined maximum iteration number.
+
+      do while ((residual > threshold) .and. (nIter < maxIter))
+
+        ! Search using conventional Newton's method
+        call newton_method(p, xyzh, particlemass, pNew, f, residual, npart)
+
+        ! Save for the next search iteration
+        p = pNew
+
+        ! Update iteration number
+        nIter = nIter + 1
+
+        write(*,*) nIter, pNew, residual
+      end do
+
+      L1 = p*evectors_old
+      write(*,*) "L1 by Newton's method - ", L1, p
+
+    else
+
+      ! call gravitational_force(0., xyzh, particlemass, npart, f, df)
+      p1 = -20.
+      p2 = 0.
+      eps = threshold
+
+      write (*,*) 'Golden section search method - Interval of extremum: p1=', p1, ' p2=', p2
+      p = golden_section_search_method(p1, p2, xyzh, particlemass, npart, eps, err, extr, maxIter, Nest, nIter)
+
+      L1 = p*evectors_old
+
+      if (extr == 1) write(*,*) 'Minimum'
+      if (extr == -1) write(*,*) 'Maximum'
+
+      write (*,*) 'Iterations done: ', nIter, ', accuracу achieved is ', err
+
+      write(*,*) "L1 by Golden section search method - ", L1, p
+
+    endif
+
+  end function L1_point
+!-----------------------------------------------------------------------
 
 end module analysis

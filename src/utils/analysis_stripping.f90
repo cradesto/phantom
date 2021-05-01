@@ -24,12 +24,12 @@ module analysis
 ! :Dependencies: centreofmass, extern_gwinspiral, io, part, physcon,
 !   prompting, readwrite_dumps, units
 !
-  use io,              only: fatal
-  use part,            only: rhoh
-  use physcon,         only: pi
-  use centreofmass,    only: get_centreofmass
-  use readwrite_dumps, only: opened_full_dump
-  use extern_gwinspiral, only:Nstar
+  use io,                only: fatal
+  use part,              only: rhoh
+  use physcon,           only: pi
+  use centreofmass,      only: get_centreofmass
+  use readwrite_dumps,   only: opened_full_dump
+  use extern_gwinspiral, only: Nstar
 
   implicit none
 
@@ -90,10 +90,11 @@ contains
     real                            :: df
     real                            :: potential
 
-    ! real                            :: fgrav(maxvxyzu,maxp)
-    ! real                            :: phitot
-
-    call print_units()
+    if(firstcall) then
+      evectors_old = 0.
+      omega_old = 0.
+      time_old = 0.
+    endif
 
     !
     !--Determine which analysis to run if this is the first step
@@ -101,13 +102,18 @@ contains
 
     !--Reset centre of mass
     call reset_centreofmass(npart,xyzh,vxyzu)
+
+    !--Calculate the moment of inertia tensor
+    density_cutoff = density_cutoff_cgs / unit_density
+    call calculate_I(dumpfile,xyzh,vxyzu,time,npart,iunit,particlemass)
+
     !
     !--Open file (appendif exists)
-    fileout = trim(dumpfile(1:INDEX(dumpfile,'_')-1))//'_centres.dat'
+    fileout = trim(dumpfile(1:index(dumpfile,'_')-1))//'_centres.dat'
 
     inquire(file=fileout,exist=iexist)
 
-    if ( .not.iexist .or. firstcall ) then
+    if(.not.iexist .or. firstcall) then
       open(iunit,file=fileout,status='replace')
       write(iunit,"('#',11(1x,'[',i2.2,1x,a11,']',2x))") &
         1, 'time', &
@@ -159,29 +165,7 @@ contains
     !
     call get_centreofmass(com,vcom,npart,xyzh,vxyzu)
 
-    !--Calculate the moment of inertia tensor
-    density_cutoff = density_cutoff_cgs / unit_density
-    call calculate_I(dumpfile,xyzh,vxyzu,time,npart,iunit,particlemass)
-
-    k = 0
-    do i = 1, npart
-      if(distance_to_line(evectors_old, xyzh(1:3,i)) <= 0.2) then
-        k = k + 1
-        xyzh2(k) = dot_product(xyzh(1:3,i), evectors_old)
-        write(10000,*) time, xyzh(1:3,i), poten(i), xyzh2(k), norm2(xyzh(1:3,i))
-      endif
-    enddo
-
-    p = 0.
-    do i = 1, 101
-      p = 0. + 40./100.*(i-1)
-      point = p*evectors_old
-      call gravitational_force(p, xyzh, particlemass, npart, f, df)
-      call gravitational_potential(p, xyzh, particlemass, npart, potential)
-      write(10001,*) time, point, p, f, df, potential
-    enddo
-
-    ! if ( firstcall ) then
+    ! if(firstcall) then
     !   analysis_opt(:) = 'none'
     !   analysis_opt(1) = 'Trace centre of mass of each star and the system'
     !   analysis_opt(2) = 'Brute force calculation of T/W'
@@ -189,23 +173,23 @@ contains
     !   analysis_opt(4) = 'Calculate the radial profile of a slice through the midplane'
     !   write(*,"(a)") 'Analysis options: '
     !   do i = 1, nana_opts
-    !     if (trim(analysis_opt(i)) /= 'none') write(*,"(a5,i2,1x,a60)") 'Case ', i, analysis_opt(i)
+    !     if(trim(analysis_opt(i)) /= 'none') write(*,"(a5,i2,1x,a60)") 'Case ', i, analysis_opt(i)
     !   enddo
     !   choice = 1
     !   call prompt('Enter analysis choice',choice,1,nana_opts)
     !   !
     !   !--Get the index range for each star
     !   ! (Note from DJP: This should now be automatically read from the dump header)
-    !   if (Nstar(1) <= 0) call fatal('analysis_NSmerger','Require Nstar(1) > 0 in header of dump file')
-    !   if (Nstar(2) <= 0) call fatal('analysis_NSmerger','Require Nstar(2) > 0 in header of dump file')
+    !   if(Nstar(1) <= 0) call fatal('analysis_NSmerger','Require Nstar(1) > 0 in header of dump file')
+    !   if(Nstar(2) <= 0) call fatal('analysis_NSmerger','Require Nstar(2) > 0 in header of dump file')
     !   !
     !   !--Prompt for the density_cut off
-    !   if (choice > 1) then
+    !   if(choice > 1) then
     !     call prompt('Enter cutoff density (cgs):',density_cutoff_cgs,0.)
     !     density_cutoff = density_cutoff_cgs / unit_density
     !   endif
     !   !--Prompt for thickness
-    !   if (choice == 4) then
+    !   if(choice == 4) then
     !     call prompt('Enter the thickness of the mid-plane slice (code units):',thickness,0.)
     !   endif
     ! endif
@@ -234,7 +218,7 @@ contains
     ! close(iunit)
     ! firstcall = .false. ! done here since this logical is required for opening files
 
-    if (firstcall) firstcall = .false. ! performed here since multiple commands require this knowledge
+    if(firstcall) firstcall = .false. ! performed here since multiple commands require this knowledge
 
   end subroutine do_analysis
 !-----------------------------------------------------------------------
@@ -251,9 +235,9 @@ contains
     real                         :: rad
     !
     !--Open file (appendif exists)
-    fileout = trim(dumpfile(1:INDEX(dumpfile,'_')-1))//'_orbit.dat'
+    fileout = trim(dumpfile(1:index(dumpfile,'_')-1))//'_orbit.dat'
     inquire(file=fileout,exist=iexist)
-    if ( firstcall .or. .not.iexist ) then
+    if(firstcall .or. .not.iexist) then
       open(iunit,file=fileout,status='replace')
       write(iunit,"('#',11(1x,'[',i2.2,1x,a11,']',2x))") &
         1,'time',&
@@ -265,7 +249,7 @@ contains
         7,'z1',  &
         8,'x2',  &
         9,'y2',  &
-        10,'z2',  &
+        10,'z2', &
         11,'r'
     else
       open(iunit,file=fileout,position='append')
@@ -298,12 +282,12 @@ contains
     real                         :: r(3),v(3)
     !
     !--Skip if not a full dump
-    if (.not.opened_full_dump) return
+    if(.not.opened_full_dump) return
     !
     !--Open file (appendif exists)
     fileout = trim(dumpfile(1:index(dumpfile,'_')-1))//'_TW.dat'
     inquire(file=fileout,exist=iexist)
-    if ( firstcall .or. .not.iexist ) then
+    if(firstcall .or. .not.iexist) then
       open(iunit,file=fileout,status='replace')
       write(iunit,"('#',6(1x,'[',i2.2,1x,a11,']',2x))") &
         1,'time',       &
@@ -330,7 +314,7 @@ contains
 !$omp reduction(max:rmax2)
 !$omp do
     do i=1,npart
-      if (rhoh(xyzh(4,i),particlemass) > density_cutoff) then
+      if(rhoh(xyzh(4,i),particlemass) > density_cutoff) then
         r = xyzh(1:3,i)  - com
         v = vxyzu(1:3,i) - vcom
         ! r cross v
@@ -341,9 +325,9 @@ contains
         radxy2 = r(1)*r(1) + r(2)*r(2)
         radyz2 = r(3)*r(3) + r(2)*r(2)
         radxz2 = r(1)*r(1) + r(3)*r(3)
-        if (radyz2 > 0.) erotx = erotx + particlemass*rcrossvx*rcrossvx/radyz2
-        if (radxz2 > 0.) eroty = eroty + particlemass*rcrossvy*rcrossvy/radxz2
-        if (radxy2 > 0.) erotz = erotz + particlemass*rcrossvz*rcrossvz/radxy2
+        if(radyz2 > 0.) erotx = erotx + particlemass*rcrossvx*rcrossvx/radyz2
+        if(radxz2 > 0.) eroty = eroty + particlemass*rcrossvy*rcrossvy/radxz2
+        if(radxy2 > 0.) erotz = erotz + particlemass*rcrossvz*rcrossvz/radxy2
         !
         ! size of the star
         rad2 = dot_product(r,r)
@@ -368,12 +352,12 @@ contains
 !$omp reduction(+:grav)
 !$omp do
     do i=1,npart
-      if (rhoh(xyzh(4,i),particlemass) > density_cutoff) then
+      if(rhoh(xyzh(4,i),particlemass) > density_cutoff) then
         do j=i+1,npart
-          if (rhoh(xyzh(4,j),particlemass) > density_cutoff) then
+          if(rhoh(xyzh(4,j),particlemass) > density_cutoff) then
             r    = xyzh(1:3,i) - xyzh(1:3,j)
             rad2 = dot_product(r,r)
-            if (rad2 > 0.0) grav = grav + 1.0/sqrt(rad2)
+            if(rad2 > 0.0) grav = grav + 1.0/sqrt(rad2)
           endif
         enddo
       endif
@@ -412,37 +396,36 @@ contains
     real                         :: omega_mean(3)
     real                         :: L1(3)
 
-    !
     !--Open file (appendif exists)
-    fileout = trim(dumpfile(1:INDEX(dumpfile,'_')-1))//'_inertia.dat'
+    fileout = trim(dumpfile(1:index(dumpfile,'_')-1))//'_inertia.dat'
     inquire(file=fileout,exist=iexist)
-    if ( firstcall .or. .not.iexist ) then
+    if(firstcall .or. .not.iexist) then
       open(iunit,file=fileout,status='replace')
       write(iunit,"('#',25(1x,'[',i2.2,1x,a11,']',2x))") &
-        1,'time',&
-        2,'I1',  &
-        3,'I2',  &
-        4,'I3',  &
-        5,'e1',  &
-        6,'e2',  &
-        7,'v1,1',&
-        8,'v1,2',&
-        9,'v1,3',&
-        10,'v2,1',&
-        11,'v2,2',&
-        12,'v2,3',&
-        13,'v3,1',&
-        14,'v3,2',&
-        15,'v3,3',&
-        16,'ang v1',&
-        17,'ang v2',&
-        18,'ang v3',&
-        19,'ang v',&
-        20,'L1,1',&
-        21,'L1,2',&
-        22,'L1,3',&
-        23,'excluded parts',&
-        24,'mstar',     &
+        1, 'time',           &
+        2, 'I1',             &
+        3, 'I2',             &
+        4, 'I3',             &
+        5, 'e1',             &
+        6, 'e2',             &
+        7, 'v1,1',           &
+        8, 'v1,2',           &
+        9, 'v1,3',           &
+        10,'v2,1',           &
+        11,'v2,2',           &
+        12,'v2,3',           &
+        13,'v3,1',           &
+        14,'v3,2',           &
+        15,'v3,3',           &
+        16,'ang v1',         &
+        17,'ang v2',         &
+        18,'ang v3',         &
+        19,'ang v',          &
+        20,'L1,1',           &
+        21,'L1,2',           &
+        22,'L1,3',           &
+        23,'excluded parts', &
+        24,'mstar',          &
         25,'rstar'
     else
       open(iunit,file=fileout,position='append')
@@ -506,7 +489,7 @@ contains
     dRdt = 0.
     omega = 0.
 
-    if(.not. firstcall .and. time > time_old) then
+    if(time > time_old) then
       dRdt = (evectors(:, index) - evectors_old)/(time - time_old)
       call cross_product3D(evectors(:, index),dRdt,omega)
       ! NB: change sign of evectors if need it
@@ -574,10 +557,10 @@ contains
     real                         :: major(3),minor(3)
     !
     !--Skip if not a full dump
-    if (.not.opened_full_dump)return
+    if(.not.opened_full_dump)return
     !
     !--Open file
-    fileout = trim(dumpfile(1:INDEX(dumpfile,'_')-1))//'_rotataxesprofile'//trim(dumpfile(INDEX(dumpfile,'_'):))//'.dat'
+    fileout = trim(dumpfile(1:index(dumpfile,'_')-1))//'_rotataxesprofile'//trim(dumpfile(index(dumpfile,'_'):))//'.dat'
     open(iunit,file=fileout,status='replace')
     write(iunit,"('#',10(1x,'[',i2.2,1x,a11,']',2x))") &
       1,'outer bin rad',&
@@ -635,7 +618,7 @@ contains
     zloc = maxloc(evectors(3,:),1)
     j = 1
     do i = 1,3
-      if (i/=zloc) then
+      if(i/=zloc) then
         principlenew( j) =principle( i)
         evectorsnew(:,j) =evectors(:,i)
         j = j+1
@@ -658,7 +641,7 @@ contains
     rmax = maxval(rtocm)
     do i = 1,nbins
       radbin(i) = rmax*float(i)/float(nbins)
-      if (i==1) then
+      if(i==1) then
         vol(i) = thickness*dtheta*radbin(1)**2
       else
         vol(i) = thickness*dtheta*(radbin(i)**2-radbin(i-1)**2)
@@ -668,12 +651,12 @@ contains
     !--Sort particles into bins, find total angular velocity and total alpha in each
     do i=1,npart
       do j=1,nbins
-        if (rtocm(i)<radbin(j)) then
-          if (abs(xyzh(3,i)-com(3)) < 0.5*thickness) then
+        if(rtocm(i)<radbin(j)) then
+          if(abs(xyzh(3,i)-com(3)) < 0.5*thickness) then
             bincountavg(j) = bincountavg(j) + 1
             vinbinavg  (j) = vinbinavg  (j) + angv(i)
             alphabinavg(j) = alphabinavg(j) + alphaind(1,i)
-            if (theta(i) < (thetamajor+dtheta) .and. theta(i) > (thetamajor-dtheta)) then
+            if(theta(i) < (thetamajor+dtheta) .and. theta(i) > (thetamajor-dtheta)) then
               bincountmaj(j) = bincountmaj(j) + 1
               vinbinmaj  (j) = vinbinmaj  (j) + angv(i)
               alphabinmaj(j) = alphabinmaj(j) + alphaind(1,i)
@@ -690,18 +673,18 @@ contains
     !
     !--Convert totals to averages for each bin
     do i = 1,nbins
-      if (bincountmaj(i) > 0) then
+      if(bincountmaj(i) > 0) then
         avvinbinmaj(i) = vinbinmaj(i)  /float(bincountmaj(i))
         alphabinmaj(i) = alphabinmaj(i)/float(bincountmaj(i))
         partdensmaj(i) = float(bincountmaj(i))*particlemass/vol(i)
       endif
-      if (bincountmin(i) > 0) then
+      if(bincountmin(i) > 0) then
         avvinbinmin(i) = vinbinmin(i)  /float(bincountmin(i))
         alphabinmin(i) = alphabinmin(i)/float(bincountmin(i))
         partdensmin(i) = float(bincountmin(i))*particlemass/vol(i)
         print*, partdensmin(i) ,float(bincountmin(i)),particlemass,vol(i)
       endif
-      if (bincountavg(i) > 0) then
+      if(bincountavg(i) > 0) then
         avvinbinavg(i) = vinbinavg(i)  /float(bincountavg(i))
         alphabinavg(i) = alphabinavg(i)/float(bincountavg(i))
         partdensavg(i) = float(bincountavg(i))*particlemass/(vol(i)*pi/dtheta)
@@ -709,7 +692,7 @@ contains
     enddo
     !
     !--Write results to file
-    do i=1,nbins
+    do i = 1,nbins
       write(iunit,'(10(es18.10,1x))')  radbin(i), partdensmin(i), avvinbinmin(i), alphabinmin(i), &
         partdensmaj(i), avvinbinmaj(i), alphabinmaj(i), partdensavg(i), avvinbinavg(i), alphabinavg(i)
     enddo
@@ -742,7 +725,7 @@ contains
     npartused = 0
     rmax2     = 0.0
     do i = 1,npart
-      if (rhoh(xyzh(4,i),particlemass) > density_cutoff) then
+      if(rhoh(xyzh(4,i),particlemass) > density_cutoff) then
         x = xyzh(1,i) - com(1)
         y = xyzh(2,i) - com(2)
         z = xyzh(3,i) - com(3)
@@ -833,10 +816,10 @@ contains
     lda = n
     lwork = 3*n-1
     call dsyev('V','U',n,a,lda,v,work,lwork,info)
-    if (info < 0) then
+    if(info < 0) then
       write(*,'(a, i3, a)') "INFO = ", info,&
         " the i-th argument had an illegal value"
-    else if (info < 0) then
+    else if(info < 0) then
       write(*,'(a, i3, a)') "INFO = ", info,&
         " the algorithm failed to converge;&
       & i off-diagonal elements of an intermediate tridiagonal&
@@ -893,10 +876,10 @@ contains
           sm=sm+abs(a(ip,iq))
 14      enddo
 15    enddo
-      if (sm==0.)&
+      if(sm==0.)&
         return
 !The normal return, which relies on quadratic convergence to machine  underflow.
-      if (i < 4) then
+      if(i < 4) then
         tresh=0.2*sm/n**2
 !...on the first  three sweeps.
       else
@@ -907,18 +890,18 @@ contains
         do 21,iq=ip+1,n
           g=100.*abs(a(ip,iq))
 !After four sweeps, skip the rotation if the off-diagonal element is small.
-          if ((i > 4).and.(abs(d(ip))+g==abs(d(ip))).and.(abs(d(iq))+g==abs(d(iq)))) then
+          if((i > 4).and.(abs(d(ip))+g==abs(d(ip))).and.(abs(d(iq))+g==abs(d(iq)))) then
             a(ip,iq)=0.
           elseif (abs(a(ip,iq)) > tresh) then
             h=d(iq)-d(ip)
-            if (abs(h)+g==abs(h)) then
+            if(abs(h)+g==abs(h)) then
               t=a(ip,iq)/h
 !t=1/(2(theta))
             else
               theta=0.5*h/a(ip,iq)
 !Equation  (11.1.10).
               t=1./(abs(theta)+sqrt(1.+theta**2))
-              if (theta < 0.)t=-t
+              if(theta < 0.)t=-t
             endif
             c=1./sqrt(1+t**2)
             s=t*c
@@ -1125,7 +1108,7 @@ contains
     ! stop
 
     ! Exit if f' is near or become zero
-    if (abs(df) < 1.e-12) then
+    if(abs(df) < 1.e-12) then
       print *, '[Error: newton_method] Function derivative becomes very close to zero or zero.'
       print *, 'f=',f, 'df/dp =',df
       print *, 'Aborting now in order to avoid division by zero.'
@@ -1137,7 +1120,7 @@ contains
     fNew = f
 
     ! Search fails if a newly updated value x is out of the search domain
-    ! if ((pNew < pBeg) .or. (pNew > pEnd)) then
+    ! if((pNew < pBeg) .or. (pNew > pEnd)) then
     !   print *, '[Error: newton_method] pNew',pNew, 'is out of domain.'
     !   print *, 'Failed in search. Aborting now.'
     !   stop
@@ -1174,16 +1157,22 @@ contains
       a0, a1, b0, b1, y0,&
       y1, z0, z1, d0, d1, d2, d3, d10
     integer              :: nfail
-!
+
+    golden_section_search_method = 0.
+
     iter = 1
     err = 1.0d0
     nfail = 0
     Nest = int(log(eps/(b-a))/log(q))
     alpha = 0.8d0
 
+    fy0 = 0.; fz0 = 0.; a0 = 0.; a1 = 0.; b0 = 0.; b1 = 0.
+    y0 = 0.; y1 = 0.; z0 = 0.; z1 = 0.; d0 = 0.
+    d1 = 0.; d2 = 0.; d3 = 0.; d10 = 0.
+
     call gravitational_potential(a, xyzh, particlemass, npart, fy0)
     call gravitational_potential(a+eps, xyzh, particlemass, npart, fz0)
-    if (fy0 > fz0) then
+    if(fy0 > fz0) then
       extr = 1         ! looking for a minimum
     else
       extr = -1        ! looking for a maximum
@@ -1198,10 +1187,10 @@ contains
       d1 = q*d0
       d2 = d0-d1
 ! checking if precision is achieved (algorithm loops)
-      if (abs(d1-d10) <= epsilon(1.0d0) .and. iter > maxIter) then
+      if(abs(d1-d10) <= epsilon(1.0d0) .and. iter > maxIter) then
         nfail = nfail+1
 ! exit after two consecutive non-decreasing precision
-        if (nfail >= 2) then
+        if(nfail >= 2) then
           err = d1
           golden_section_search_method = 0.5d0*(a1+b1)
           return
@@ -1220,7 +1209,7 @@ contains
         iter = iter+1
         d3 = d1-d2
 
-        if (extr*fy0 <= extr*fz0) then
+        if(extr*fy0 <= extr*fz0) then
           a1 = a0
           b1 = z0
           z1 = y0
@@ -1228,7 +1217,7 @@ contains
           fz0 = fy0
           call gravitational_potential(y1, xyzh, particlemass, npart, fy0)
 
-          if (y1 >= z1) then
+          if(y1 >= z1) then
             a0 = a1
             b0 = b1
             exit   ! to step 2
@@ -1241,7 +1230,7 @@ contains
           fy0 = fz0
           call gravitational_potential(z1, xyzh, particlemass, npart, fz0)
 
-          if (z1 <= y1) then
+          if(z1 <= y1) then
             a0 = a1
             b0 = b1
             exit   ! to step 2
@@ -1249,13 +1238,13 @@ contains
 
         end if
 ! step 4
-        if (d1 <= eps) then
+        if(d1 <= eps) then
           golden_section_search_method = 0.5d0*(a1+b1)
           err = d1
           return
         else
 
-          if (d1 <= alpha*d0) then
+          if(d1 <= alpha*d0) then
             a0 = a1
             b0 = b1
             y0 = y1
@@ -1330,22 +1319,23 @@ contains
 
     else
 
-      ! call gravitational_force(0., xyzh, particlemass, npart, f, df)
+      ! NB: find correct p1 and p2
       p1 = -20.
       p2 = 0.
       eps = threshold
 
       write (*,*) 'Golden section search method - Interval of extremum: p1=', p1, ' p2=', p2
-      p = golden_section_search_method(p1, p2, xyzh, particlemass, npart, eps, err, extr, maxIter, Nest, nIter)
+      p = golden_section_search_method(p1, p2, xyzh, particlemass,&
+        npart, eps, err, extr,&
+        maxIter, Nest, nIter)
 
       L1 = p*evectors_old
 
-      if (extr == 1) write(*,*) 'Minimum'
-      if (extr == -1) write(*,*) 'Maximum'
+      if(extr == 1)  write(*,*) 'Minimum'
+      if(extr == -1) write(*,*) 'Maximum'
 
       write (*,*) 'Iterations done: ', nIter, ', accuracу achieved is ', err
-
-      write(*,*) "L1 by Golden section search method - ", L1, p
+      write(*,*) 'L1 by Golden section search method - ', L1, p
 
     endif
 

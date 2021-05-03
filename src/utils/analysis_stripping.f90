@@ -33,68 +33,59 @@ module analysis
 
   implicit none
 
+  private
+
   character(len=20), parameter, public :: analysistype = 'Stripping'
   !
-  integer, parameter, private :: nana_opts          = 20
-  real,               private :: density_cutoff_cgs = 5.0d-5     ! The density threshold in code units (opts 2,3,4)
-  real,               private :: thickness          = 2.0
-  real,               private :: dtheta             = 5.*pi/180. ! width of slice in the directions of the minor and major axes (opt 4)
+  integer, parameter :: nana_opts          = 20
+  real               :: density_cutoff_cgs = 5.0d-5     ! The density threshold in code units (opts 2,3,4)
+  real               :: thickness          = 2.0
+  real               :: dtheta             = 5.*pi/180. ! width of slice in the directions of the minor and major axes (opt 4)
 
-  logical,            private :: firstcall          = .true.
-  !
-  ! integer,            private :: choice
-  real,               private :: density_cutoff
-  real,               private :: com(3),vcom(3),com1(3),com2(3),vcom1(3),vcom2(3)
-  logical,            private :: iexist
-  character(len=200), private :: fileout,analysis_opt(nana_opts)
+  logical            :: firstcall          = .true.
+  logical            :: iexist
+  character(len=200) :: fileout, analysis_opt(nana_opts)
 
-  real,               private, save :: evectors_old(3)
-  real,               private, save :: omega_old(3)
-  real,               private, save :: time_old
-  !
-  private :: trace_com,calculate_TW,calculate_I,calculate_midplane_profile
-  private :: get_momentofinertia,jacobi
+  ! integer,            :: choice
+  real               :: density_cutoff
+  real               :: com(3), vcom(3)
+  real               :: L1_projection
 
-  public  :: do_analysis
+  ! save from another snapshot
+  real, save         :: evectors_old(3)
+  real, save         :: omega_old(3)
+  real, save         :: time_old
 
-  private
+  ! for L1 calculation
+  real, pointer      :: xyzh_(:,:), vxyzu_(:,:)
+  real               :: particlemass_
+  integer            :: npart_
+
+  public             :: do_analysis
 
 contains
 !--------------------------------------------------------------------------
   subroutine do_analysis(dumpfile,num,xyzh,vxyzu,particlemass,npart,time,iunit)
 
-    use dim,          only: maxp, maxvxyzu
-    use centreofmass, only: get_centreofmass,reset_centreofmass
+    use centreofmass, only: get_centreofmass, reset_centreofmass
     use prompting,    only: prompt
-    use units,        only: unit_density, udist, print_units
-
-    use part,         only: gradh, poten, fxyzu
+    use units,        only: unit_density
 
     character(len=*), intent(in)    :: dumpfile
-    integer,          intent(in)    :: num,npart,iunit
-    real,             intent(inout) :: xyzh(:,:), vxyzu(:,:)
-    real,             intent(in)    :: particlemass,time
-
-    integer                         :: i, iA, iB
-
-    real(kind=8)                    :: xposA(3),xposB(3),vpos(3),sep
-    integer                         :: npartA, npartB
-    real                            :: xyzhA(4,maxp), vxyzuA(maxvxyzu,maxp)
-    real                            :: xyzhB(4,maxp), vxyzuB(maxvxyzu,maxp)
-
-    integer                         :: k
-    real                            :: point(3)
-    real                            :: p
-    real                            :: xyzh2(maxp)
-    real                            :: f
-    real                            :: df
-    real                            :: potential
+    integer,          intent(in)    :: num, npart, iunit
+    real, target,     intent(inout) :: xyzh(:,:), vxyzu(:,:)
+    real,             intent(in)    :: particlemass, time
 
     if(firstcall) then
       evectors_old = 0.
       omega_old = 0.
       time_old = 0.
     endif
+
+    xyzh_ => xyzh
+    vxyzu_ => vxyzu
+    particlemass_ = particlemass
+    npart_ = npart
 
     !
     !--Determine which analysis to run if this is the first step
@@ -103,67 +94,15 @@ contains
     !--Reset centre of mass
     call reset_centreofmass(npart,xyzh,vxyzu)
 
-    !--Calculate the moment of inertia tensor
-    density_cutoff = density_cutoff_cgs / unit_density
-    call calculate_I(dumpfile,xyzh,vxyzu,time,npart,iunit,particlemass)
-
-    !
-    !--Open file (appendif exists)
-    fileout = trim(dumpfile(1:index(dumpfile,'_')-1))//'_centres.dat'
-
-    inquire(file=fileout,exist=iexist)
-
-    if(.not.iexist .or. firstcall) then
-      open(iunit,file=fileout,status='replace')
-      write(iunit,"('#',11(1x,'[',i2.2,1x,a11,']',2x))") &
-        1, 'time', &
-        2, 'x_A',  &
-        3, 'y_A',  &
-        4, 'z_A',  &
-        5, 'x_B',  &
-        6, 'y_B',  &
-        7, 'z_B',  &
-        8, 'd',    &
-        9, 'm_A',  &
-        10,'m_B',  &
-        11,'dm'
-    else
-      open(iunit,file=fileout,position='append')
-    endif
-!
-!--Determine the centre of mass of each star
-!--NB: In this version two center masses of star should be lie on x axe!
-
-    npartA = count(mask = xyzh(1,:) <= 0.)
-    npartB = npart - npartA
-
-    iA = 1
-    iB = 1
-    do i = 1, npart
-      if(xyzh(1,i) <= 0.) then
-        xyzhA(:,iA) = xyzh(:,i)
-        vxyzuA(:,iA) = vxyzu(:,i)
-        iA = iA + 1
-      else
-        xyzhB(:,iB) = xyzh(:,i)
-        vxyzuB(:,iB) = vxyzu(:,i)
-        iB = iB + 1
-      endif
-    enddo
-
-    call get_centreofmass(xposA,vpos,npartA,xyzhA,vxyzuA)
-    call get_centreofmass(xposB,vpos,npartB,xyzhB,vxyzuB)
-    sep = sqrt(dot_product(xposA-xposB,xposA-xposB))
-
-    write(iunit,'(11(es18.10,1x))') time, xposA, xposB, sep,&
-      npartA*particlemass, npartB*particlemass,&
-      abs(npartA*particlemass - npartB*particlemass)
-
-    close(iunit)
-
     !--Calculate the centre of mass and velocity of the system
-    !
     call get_centreofmass(com,vcom,npart,xyzh,vxyzu)
+
+    density_cutoff = density_cutoff_cgs / unit_density
+
+    !--Calculate the moment of inertia tensor
+    call calculate_I(dumpfile, xyzh, vxyzu, time, npart, iunit, particlemass)
+
+    call trace_com(dumpfile, xyzh, vxyzu, time, npart, iunit, particlemass)
 
     ! if(firstcall) then
     !   analysis_opt(:) = 'none'
@@ -226,43 +165,95 @@ contains
 ! Trace centre of mass of each star and the system
 !+
 !-----------------------------------------------------------------------
-  subroutine trace_com(dumpfile,xyzh,vxyzu,time,npart,iunit)
+  subroutine trace_com(dumpfile,xyzh,vxyzu,time,npart,iunit,particlemass)
+
+    use dim,          only: maxp, maxvxyzu
+    use centreofmass, only: get_centreofmass, get_total_angular_momentum
 
     character(len=*), intent(in) :: dumpfile
     integer,          intent(in) :: npart,iunit
     real,             intent(in) :: xyzh(:,:),vxyzu(:,:)
     real,             intent(in) :: time
-    real                         :: rad
-    !
+    real,             intent(in) :: particlemass
+
+    integer                      :: i, iA, iB
+
+    real(kind=8)                 :: xposA(3), xposB(3), vpos(3), sep
+    integer                      :: npartA, npartB
+    real                         :: xyzhA(4,maxp), vxyzuA(maxvxyzu, maxp)
+    real                         :: xyzhB(4,maxp), vxyzuB(maxvxyzu, maxp)
+    real                         :: L_A(3), L_B(3), L_tot(3)
+
     !--Open file (appendif exists)
-    fileout = trim(dumpfile(1:index(dumpfile,'_')-1))//'_orbit.dat'
+    fileout = trim(dumpfile(1:index(dumpfile,'_')-1))//'_centres.dat'
+
     inquire(file=fileout,exist=iexist)
-    if(firstcall .or. .not.iexist) then
+
+    if(.not.iexist .or. firstcall) then
       open(iunit,file=fileout,status='replace')
-      write(iunit,"('#',11(1x,'[',i2.2,1x,a11,']',2x))") &
-        1,'time',&
-        2,'x',   &
-        3,'y',   &
-        4,'z',   &
-        5,'x1',  &
-        6,'y1',  &
-        7,'z1',  &
-        8,'x2',  &
-        9,'y2',  &
-        10,'z2', &
-        11,'r'
+      write(iunit,"('#',23(1x,'[',i2.2,1x,a11,']',2x))") &
+        1, 'time',   &
+        2, 'x_A',    &
+        3, 'y_A',    &
+        4, 'z_A',    &
+        5, 'x_B',    &
+        6, 'y_B',    &
+        7, 'z_B',    &
+        8, 'd',      &
+        9, 'm_A',    &
+        10,'m_B',    &
+        11,'dm',     &
+        12,'L_tot,1',&
+        13,'L_tot,2',&
+        14,'L_tot,3',&
+        15,'L_A,1',  &
+        16,'L_A,2',  &
+        17,'L_A,3',  &
+        18,'L_B,1',  &
+        19,'L_B,2',  &
+        20,'L_B,3',  &
+        21,'n L_tot',&
+        22,'n L_A',  &
+        23,'n L_B'
     else
       open(iunit,file=fileout,position='append')
     endif
-    !
-    !--Get centre of masses of the stars
-    call get_centreofmass(com1,vcom1,nstar(1),xyzh(:,1:nstar(1)),vxyzu(:,1:nstar(1)))
-    call get_centreofmass(com2,vcom2,nstar(2),xyzh(:,nstar(1)+1:npart),vxyzu(:,nstar(1)+1:npart))
-    !
-    rad = sqrt( (com1(1)-com2(1))**2 + (com1(2)-com2(2))**2 + (com1(3)-com2(3))**2 )
-    !
-    !--Write results to file
-    write(iunit,'(11(Es18.10,1x))') time,com,com1,com2,rad
+
+!--Determine the centre of mass of each star
+!--NB: In this version two center masses of star should be lie on x axe!
+
+    iA = 1
+    iB = 1
+    do i = 1, npart
+      if(dot_product(xyzh(1:3,i), evectors_old) >= L1_projection) then
+        xyzhA(:,iA) = xyzh(:,i)
+        vxyzuA(:,iA) = vxyzu(:,i)
+        iA = iA + 1
+      else
+        xyzhB(:,iB) = xyzh(:,i)
+        vxyzuB(:,iB) = vxyzu(:,i)
+        iB = iB + 1
+      endif
+    enddo
+
+    npartA = iA - 1
+    npartB = iB - 1
+
+    call get_centreofmass(xposA, vpos, npartA, xyzhA, vxyzuA)
+    call get_centreofmass(xposB, vpos, npartB, xyzhB, vxyzuB)
+    sep = sqrt(dot_product(xposA - xposB, xposA - xposB))
+
+    call get_total_angular_momentum(xyzhA, vxyzuA, npartA, L_A)
+    call get_total_angular_momentum(xyzhB, vxyzuB, npartB, L_B)
+    call get_total_angular_momentum(xyzh, vxyzu, npart, L_tot)
+
+    write(iunit,'(23(es18.10,1x))') time, xposA, xposB, sep,&
+      npartA*particlemass, npartB*particlemass,&
+      abs(npartA*particlemass - npartB*particlemass),&
+      L_tot, L_A, L_B,&
+      norm2(L_tot), norm2(L_A), norm2(L_B)
+
+    close(iunit)
     !
   end subroutine trace_com
 !-----------------------------------------------------------------------
@@ -388,7 +379,7 @@ contains
     real,             intent(in) :: xyzh(:,:), vxyzu(:,:)
     real,             intent(in) :: particlemass,time
 
-    integer                      :: i,npartused
+    integer                      :: npartused
     real                         :: rmax,smallI,medI,bigI
     integer                      :: smallIIndex, middleIIndex, bigIIndex
     real                         :: principle(3),evectors(3,3),ellipticity(2)
@@ -456,7 +447,7 @@ contains
     write(*,*) "Mean Omega coords = ", omega_mean
     write(*,*) "Mean Omega norm2 = ", norm2(omega_mean)
 
-    L1 = L1_point(2, xyzh, particlemass, npart)
+    call L1_point(2, xyzh, particlemass, npart, L1_projection, L1)
 
     !--Write to file
     write(iunit,'(25(es18.10,1x))') &
@@ -720,11 +711,12 @@ contains
     real                          :: inertia2(3,3)
 #endif
     real                          :: x,y,z,r2,rmax2
-    !
+
     inertia   = 0.
     npartused = 0
     rmax2     = 0.0
-    do i = 1,npart
+
+    do i = 1, npart
       if(rhoh(xyzh(4,i),particlemass) > density_cutoff) then
         x = xyzh(1,i) - com(1)
         y = xyzh(2,i) - com(2)
@@ -738,7 +730,7 @@ contains
         ! Additional useful values
         npartused    = npartused + 1
         r2           = x*x + y*y + z*z
-        rmax2        = max(rmax2,r2)
+        rmax2        = max(rmax2, r2)
       endif
     enddo
     rmax = sqrt(rmax2)
@@ -976,6 +968,9 @@ contains
 
   end function distance_to_line
 !-----------------------------------------------------------------------
+! Finding the value of the gravitational potential by Lagrange interpolation method
+! Due to the factorial growth in the numerator and denominator this method apears unsuccessful
+!-----------------------------------------------------------------------
   real function interpolate_potential_lagrange(p, x, y, npoints) result(phi)
 
     real,    intent(in) :: p
@@ -1003,6 +998,15 @@ contains
     enddo
 
   end function interpolate_potential_lagrange
+!-----------------------------------------------------------------------
+  subroutine gravitational_potential_wrapper(p, potential)
+
+    real, intent (in)  :: p
+    real, intent (out) :: potential
+
+    call gravitational_potential(p, xyzh_, particlemass_, npart_, potential)
+
+  end subroutine gravitational_potential_wrapper
 !-----------------------------------------------------------------------
   subroutine gravitational_potential(p, xyzh, particlemass, npart, potential)
 
@@ -1032,6 +1036,45 @@ contains
     potential = potential*particlemass
 
   end subroutine gravitational_potential
+!-----------------------------------------------------------------------
+  subroutine roche_potential_wrapper(p, potential)
+
+    real, intent (in)  :: p
+    real, intent (out) :: potential
+
+    real               :: omega
+
+    omega = norm2(omega_old)
+    call roche_potential(p, xyzh_, particlemass_, npart_, omega, potential)
+
+  end subroutine roche_potential_wrapper
+!-----------------------------------------------------------------------
+  subroutine roche_potential(p, xyzh, particlemass, npart, omega, potential)
+
+    real,    intent (in)  :: p
+    integer, intent (in)  :: npart
+    real,    intent (in)  :: xyzh(4,npart)
+    real,    intent (in)  :: particlemass
+    real,    intent (in)  :: omega
+    real,    intent (out) :: potential
+
+    potential = 0.
+
+    call gravitational_potential(p, xyzh, particlemass, npart, potential)
+
+    potential = potential - 0.5*(omega*omega)*(p*p)
+
+  end subroutine roche_potential
+!-----------------------------------------------------------------------
+  subroutine gravitational_force_wrapper(p, force, dforce)
+
+    real, intent (in)  :: p
+    real, intent (out) :: force
+    real, intent (out) :: dforce
+
+    call gravitational_force(p, xyzh_, particlemass_, npart_, force, dforce)
+
+  end subroutine gravitational_force_wrapper
 !-----------------------------------------------------------------------
   subroutine gravitational_force(p, xyzh, particlemass, npart, force, dforce)
 
@@ -1086,9 +1129,9 @@ contains
 ! Finding the zero of gravitational force by Newton method
 ! Due to the noise in the function this method is unsuccessful
 !-----------------------------------------------------------------------
-  subroutine newton_method(p, xyzh, particlemass, pNew, fNew, residual, npart)
+  subroutine newton_method(p, xyzh, particlemass, pNew, fNew, residual, npart, func)
 
-    real,    intent(in) :: p
+    real,    intent(in)  :: p
     integer, intent(in)  :: npart
     real,    intent(in)  :: xyzh(4,npart)
     real,    intent(in)  :: particlemass
@@ -1096,13 +1139,21 @@ contains
 
     real                 :: pNew, f, df
 
+    interface
+      subroutine func(point, force, dforce)
+        real, intent (in)  :: point
+        real, intent (out) :: force
+        real, intent (out) :: dforce
+      end subroutine func
+    end interface
+
     ! compute function value evaluated at x
-    call gravitational_force(p, xyzh, particlemass, npart, f, df)
+    call func(p, f, df)
 
     ! numerical second derivative
     ! write(*,*) p, f, df
     ! pNew = p + 1.e-4
-    ! call gravitational_force(pNew, xyzh, particlemass, npart, fNew, df)
+    ! call func(pNew, fNew, df)
     ! df = (fNew - f)/(pNew - p)
     ! write(*,*) pNew, f, df
     ! stop
@@ -1136,7 +1187,8 @@ contains
 ! The implementation is based on the more robust approach described in
 !   V.G. Karmanov Mathematical programming, Moscow: FML, 2008, pp. 134-142.
 !-----------------------------------------------------------------------
-  real function golden_section_search_method(a, b, xyzh, particlemass, npart, eps, err, extr, maxIter, Nest, iter)
+  real function golden_section_search_method(a, b, xyzh, particlemass, npart,&
+    eps, err, extr, maxIter, Nest, iter, func)
 
     real,    intent(in)  :: a, b        ! left and right boundaries
     ! of the extremum search interval
@@ -1158,6 +1210,13 @@ contains
       y1, z0, z1, d0, d1, d2, d3, d10
     integer              :: nfail
 
+    interface
+      subroutine func(point, potential)
+        real, intent (in)  :: point
+        real, intent (out) :: potential
+      end subroutine func
+    end interface
+
     golden_section_search_method = 0.
 
     iter = 1
@@ -1170,8 +1229,8 @@ contains
     y0 = 0.; y1 = 0.; z0 = 0.; z1 = 0.; d0 = 0.
     d1 = 0.; d2 = 0.; d3 = 0.; d10 = 0.
 
-    call gravitational_potential(a, xyzh, particlemass, npart, fy0)
-    call gravitational_potential(a+eps, xyzh, particlemass, npart, fz0)
+    call func(a, fy0)
+    call func(a+eps, fz0)
     if(fy0 > fz0) then
       extr = 1         ! looking for a minimum
     else
@@ -1202,8 +1261,8 @@ contains
       y0 = a0+d2
       z0 = b0-d2
 
-      call gravitational_potential(y0, xyzh, particlemass, npart, fy0)
-      call gravitational_potential(z0, xyzh, particlemass, npart, fz0)
+      call func(y0, fy0)
+      call func(z0, fz0)
 ! step 3
       do
         iter = iter+1
@@ -1215,7 +1274,7 @@ contains
           z1 = y0
           y1 = a1+d3
           fz0 = fy0
-          call gravitational_potential(y1, xyzh, particlemass, npart, fy0)
+          call func(y1, fy0)
 
           if(y1 >= z1) then
             a0 = a1
@@ -1228,7 +1287,7 @@ contains
           y1 = z0
           z1 = b1-d3
           fy0 = fz0
-          call gravitational_potential(z1, xyzh, particlemass, npart, fz0)
+          call func(z1, fz0)
 
           if(z1 <= y1) then
             a0 = a1
@@ -1266,27 +1325,28 @@ contains
 
   end function golden_section_search_method
 !-----------------------------------------------------------------------
-  function L1_point(method, xyzh, particlemass, npart) result(L1)
+  subroutine L1_point(method, xyzh, particlemass, npart, L1_proj, L1)
 
     integer, intent(in)  :: method ! 1 - Newton, 2 - Golden Section Search
     integer, intent(in)  :: npart
     real,    intent(in)  :: xyzh(4,npart)
     real,    intent(in)  :: particlemass
-
-    real                 :: L1(3)
+    real,    intent(out) :: L1_proj
+    real,    intent(out) :: L1(3)
 
     integer              :: nIter
     integer, parameter   :: maxIter = 10
     real,    parameter   :: threshold = 1e-6
 
     ! for Newton's method
-    real                 :: p, pNew, residual, f, df
+    real                 :: p, pNew, residual, f
 
     ! for Golden section search method
     real                 :: p1, p2
     integer              :: nest, extr
     real                 :: eps, err
 
+    L1_proj = 0.
     L1 = 0.
 
     ! Initial values for residual and number of iteration
@@ -1303,7 +1363,8 @@ contains
       do while ((residual > threshold) .and. (nIter < maxIter))
 
         ! Search using conventional Newton's method
-        call newton_method(p, xyzh, particlemass, pNew, f, residual, npart)
+        call newton_method(p, xyzh, particlemass, pNew, f,&
+          residual, npart, gravitational_force_wrapper)
 
         ! Save for the next search iteration
         p = pNew
@@ -1324,22 +1385,25 @@ contains
       p2 = 0.
       eps = threshold
 
-      write (*,*) 'Golden section search method - Interval of extremum: p1=', p1, ' p2=', p2
+      write(*,*) 'Golden section search method - Interval of extremum: p1=', p1, ' p2=', p2
       p = golden_section_search_method(p1, p2, xyzh, particlemass,&
         npart, eps, err, extr,&
-        maxIter, Nest, nIter)
+        maxIter, Nest, nIter,&
+        roche_potential_wrapper)
 
       L1 = p*evectors_old
 
       if(extr == 1)  write(*,*) 'Minimum'
       if(extr == -1) write(*,*) 'Maximum'
 
-      write (*,*) 'Iterations done: ', nIter, ', accuracу achieved is ', err
+      write(*,*) 'Iterations done: ', nIter, ', accuracу achieved is ', err
       write(*,*) 'L1 by Golden section search method - ', L1, p
 
     endif
 
-  end function L1_point
+    L1_proj = p
+
+  end subroutine L1_point
 !-----------------------------------------------------------------------
 
 end module analysis

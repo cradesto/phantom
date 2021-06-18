@@ -139,7 +139,7 @@ subroutine gw_still_inspiralling(npart,xyzh,vxyzu,nptmass,xyzmh_ptmass,vxyz_ptma
 !$omp enddo
 !$omp end parallel
     !
-    ! Determine how mnay particle are 'in' star 1 when they should be 'in' star 2
+    ! Determine how many particle are 'in' star 1 when they should be 'in' star 2
     ! as determined by their CoM location
     !
     k2 = 0
@@ -185,8 +185,13 @@ end subroutine gw_still_inspiralling
 !        the CoM's have just been calculated and stored
 !+
 !-----------------------------------------------------------------------
-subroutine get_gw_force()
- real :: dx,dy,dz,separation,vstar1sq,vstar2sq
+subroutine get_gw_force(time,npart,xyzh,vxyzu,particlemass,nptmass,xyzmh_ptmass,vxyz_ptmass)
+
+ real,     intent(in) :: time
+ integer,  intent(in) :: npart, nptmass
+ real,     intent(in) :: particlemass
+ real,     intent(in) :: xyzh(:,:), vxyzu(:,:), xyzmh_ptmass(:,:), vxyz_ptmass(:,:)
+ real                 :: dx,dy,dz,separation,vstar1sq,vstar2sq
 
  if ( isseparate ) then
     dx = comstar1(1) - comstar2(1)
@@ -213,8 +218,10 @@ end subroutine get_gw_force
 !       required force
 !+
 !-----------------------------------------------------------------------
-subroutine get_gw_force_i(i,fextxi,fextyi,fextzi,phi)
+subroutine get_gw_force_i(i,xi,yi,zi,fextxi,fextyi,fextzi,phi)
+
  integer, intent(in)    :: i
+ real,    intent(in)    :: xi,yi,zi
  real,    intent(inout) :: fextxi,fextyi,fextzi,phi
 
  if (i > 0 .and. isseparate ) then

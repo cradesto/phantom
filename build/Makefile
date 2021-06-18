@@ -1076,13 +1076,15 @@ endif
 
 ifeq ($(SETUP), stripping)
 #   single (option 2) or binary (option 3) polytrope test
-    SETUPFILE= setup_star.f90
-    ANALYSIS= analysis_stripping.f90
-    GRAVITY=yes
-    ISOTHERMAL=yes
-    MODFILE=moddump_binarystar.f90
-    KNOWN_SETUP=yes
-    LAPACK=yes
+    SETUPFILE   = setup_star.f90
+    ANALYSIS    = analysis_stripping.f90
+    GRAVITY     = yes
+    # GWS         = yes # is it necessary?
+    ISOTHERMAL  = yes
+    MODFILE     = moddump_binarystar.f90
+    KNOWN_SETUP = yes
+    # LAPACK      = yes
+    SRCPOT      = ${SRCPOTS:extern_gwinspiral.f90=extern_gwinspiral_stripping.f90}
 endif
 
 ifeq ($(SETUP), evrard)
@@ -1718,7 +1720,7 @@ OBJDIR=obj
 .SUFFIXES: .o .f90 .F90 .c .f
 
 %.o : %.f90
-	$(FC) -c $(FFLAGS) $< -o $@
+	$(FC) -c $(FFLAGS) $(FPPFLAGS) $< -o $@
 
 %.o : %.F90
 	$(FC) -c $(FFLAGS) ${FPP_PREFIX} $(FPPFLAGS) $< -o $@
@@ -2071,17 +2073,23 @@ endif
 
 .PHONY: phantomanalysis
 ifeq ($(LAPACK), yes)
-phantomanalysis: LDFLAGS+= -L/usr/lib/x86_64-linux-gnu/lapack -llapack \
+phantomanalysis: FPPFLAGS += -DLAPACK
+ifneq ($(UNAME), Darwin)
+phantomanalysis: LDFLAGS += -L/usr/lib/x86_64-linux-gnu/lapack -llapack \
                             -L/usr/lib/x86_64-linux-gnu/blas -lblas
+else
+phantomanalysis: LDFLAGS += -L/usr/local/opt/lapack/lib -llapack -lblas
 endif
+endif
+
 phantomanalysis: checksystem checkparams $(OBJA) phantomanalysis.o
+	@echo 'Preprocessor flags in phantomanalysis are "'${FPPFLAGS}'"'
 	@echo ""
 	@echo "phantomanalysis: we live to serve you"
 	@echo ""
 	$(FC) $(FFLAGS) -o $(BINDIR)/$(ANALYSISBIN) $(OBJA) phantomanalysis.o $(LDFLAGS)
 
 analysis: phantomanalysis
-
 
 cleananalysis:
 	rm -f $(BINDIR)/phantomanalysis
@@ -2900,17 +2908,17 @@ LASTFFLAGS = ${shell if [ -e .make_lastfflags ]; then cat .make_lastfflags; fi}
 checksystem: checksys checksetup
 
 checksys:
-   ifeq ($(KNOWN_SYSTEM), yes)
+ifeq ($(KNOWN_SYSTEM), yes)
 	@echo ""
 	@echo "Compiling Phantom v$(PHANTOM_VERSION_MAJOR).$(PHANTOM_VERSION_MINOR).$(PHANTOM_VERSION_MICRO) for $(SYSTEM) system..........."
 	@echo ""
-        ifneq ($(SYSTEM),$(LASTSYSTEM))
-	    @echo system changed from ${LASTSYSTEM} to ${SYSTEM}
-	    @${MAKE} clean
-	    @${MAKE} cleanmathflags
-        endif
+ifneq ($(SYSTEM),$(LASTSYSTEM))
+	@echo system changed from ${LASTSYSTEM} to ${SYSTEM}
+	@${MAKE} clean
+	@${MAKE} cleanmathflags
+endif
 	@echo $(SYSTEM) > .make_lastsystem
-   else
+else
 	@echo ""
 	@echo "make: WARNING: value of SYSTEM = $(SYSTEM) not recognised..."
 	@echo "=> set the environment variable SYSTEM to one listed "
@@ -2918,23 +2926,23 @@ checksys:
 	@echo ""
 	@${MAKE} compilers
 	@${MAKE} err;
-   endif
+endif
 
 checksetup:
-   ifeq ($(OBSOLETE_SETUP), yes)
+ifeq ($(OBSOLETE_SETUP), yes)
 	@echo "make: WARNING: value of SETUP = $(OLDSETUP) is obsolete..."
 	@echo "=> setting SETUP = $(SETUP)"
 	@echo
-   endif
-   ifeq ($(KNOWN_SETUP), yes)
+endif
+ifeq ($(KNOWN_SETUP), yes)
 	@echo "Using options for "$(SETUP)" setup"
 	@echo ""
-        ifneq ($(SETUP),$(LASTSETUP))
-	    @echo setup changed from ${LASTSETUP} to ${SETUP}
-	    @${MAKE} clean
-        endif
+ifneq ($(SETUP),$(LASTSETUP))
+	@echo setup changed from ${LASTSETUP} to ${SETUP}
+	@${MAKE} clean
+endif
 	@echo $(SETUP) > .make_lastsetup
-   else
+else
 	@echo "setup '$(SETUP)' not recognised..."
 	@echo ""
 	@echo "Please set SETUP to one listed in build/Makefile"
@@ -2956,63 +2964,63 @@ checksetup:
 	@echo " ENDIAN=BIG/LITTLE"
 	@echo ""
 	@${MAKE} err;
-   endif
+endif
 
 checkparams:
 	@echo "Using $(KERNEL) kernel"
-   ifeq ($(DEBUG), yes)
+ifeq ($(DEBUG), yes)
 	@echo "Debugging flags are ON"
-   endif
-   ifeq ($(DOUBLEPRECISION), yes)
+endif
+ifeq ($(DOUBLEPRECISION), yes)
 	@echo "Flags set for DOUBLE PRECISION"
-   else
+else
 	@echo "Flags set for SINGLE PRECISION"
-   endif
-   ifeq ($(OPENMP), yes)
+endif
+ifeq ($(OPENMP), yes)
 	@echo "Compiling in PARALLEL (OpenMP)"
-   else
+else
 	@echo "Compiling in SERIAL"
-   endif
-   ifeq ($(ENDIAN), BIG)
+endif
+ifeq ($(ENDIAN), BIG)
 	@echo "Flags set for conversion to BIG endian"
-   endif
-   ifeq ($(ENDIAN), LITTLE)
+endif
+ifeq ($(ENDIAN), LITTLE)
 	@echo "Flags set for conversion to LITTLE endian"
-   endif
-   ifneq ($(FPPFLAGS),$(LASTFPPFLAGS))
+endif
+ifneq ($(FPPFLAGS),$(LASTFPPFLAGS))
 	@echo 'pre-processor flags changed from "'${LASTFPPFLAGS}'" to "'${FPPFLAGS}'"'
 	@${MAKE} clean;
 	#for x in ../src/*/*.F90; do y=`basename $$x`; rm -f $${y/.F90/.o}; done
-   endif
+endif
 	@echo "Preprocessor flags are "${FPPFLAGS}
 	@echo "${FPPFLAGS}" > .make_lastfppflags
-   ifneq ($(FFLAGS),$(LASTFFLAGS))
+ifneq ($(FFLAGS),$(LASTFFLAGS))
 	@echo 'Fortran flags changed from "'${LASTFFLAGS}'" to "'${FFLAGS}'"'
 	@${MAKE} clean;
-   endif
+endif
 	@echo "Fortran flags are "${FFLAGS}
 	@echo "${FFLAGS}" > .make_lastfflags
 
 checksplash:
-   ifneq ("X$(SPLASH_DIR)","X")
+ifneq ("X$(SPLASH_DIR)","X")
 	@echo; echo "Compiling SPLASH source files from "$(SPLASH_DIR); echo
-   else
+else
 	@echo; echo "ERROR: cannot find SPLASH directory needed for some source files - try \"export SPLASH_DIR=${HOME}/splash\""; echo
-   endif
+endif
 
 checkmcfost:
-   ifneq ("X$(MCFOST_DIR)","X")
+ifneq ("X$(MCFOST_DIR)","X")
 	@echo; echo "MCFOST directory is "$(MCFOST_DIR); echo;
-   else
+else
 	@echo; echo "ERROR: cannot find MCFOST directory for linking - set this using MCFOST_DIR"; echo; ${MAKE} err
-   endif
+endif
 
 checksmol:
-   ifneq ("X$(SMOL_DIR)","X")
+ifneq ("X$(SMOL_DIR)","X")
 	@echo; echo "Linking SMOLUCHOWSKY library from "$(SMOL_DIR); echo
-   else
+else
 	@echo; echo "ERROR: cannot find SMOL_DIR directory needed for Smoluchowsky library - try \"export SMOL_DIR=${HOME}/smol\""; echo
-   endif
+endif
 
 giza-fortran.o : $(SPLASH_DIR)/giza/interface/giza-fortran.F90 $(SPLASH_DIR)/giza/lib/libgiza.a
 	$(FC) $(FFLAGS) -I$(SPLASH_DIR)/giza/include/ -c $< -o $@

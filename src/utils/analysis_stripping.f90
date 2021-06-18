@@ -5,8 +5,6 @@
 ! http://phantomsph.bitbucket.io/                                          !
 !--------------------------------------------------------------------------!
 
-! #define LAPACK
-
 module analysis
 !
 ! analysis programmes used to analys a neutron star merger.
@@ -29,7 +27,13 @@ module analysis
   use physcon,           only: pi
   use centreofmass,      only: get_centreofmass
   use readwrite_dumps,   only: opened_full_dump
-  use extern_gwinspiral, only: Nstar
+  use extern_gwinspiral, only: Nstar,&
+                                get_momentofinertia,&
+                                calculate_omega,&
+                                com, vcom,&
+                                evector_old,&
+                                omega_old,&
+                                time_old
 
   implicit none
 
@@ -37,26 +41,20 @@ module analysis
 
   character(len=20), parameter, public :: analysistype = 'Stripping'
   !
-  integer, parameter :: nana_opts          = 20
+  ! integer, parameter :: nana_opts          = 20
   real               :: density_cutoff_cgs = 5.0d-5     ! The density threshold in code units (opts 2,3,4)
   real               :: thickness          = 2.0
   real               :: dtheta             = 5.*pi/180. ! width of slice in the directions of the minor and major axes (opt 4)
 
   logical            :: firstcall          = .true.
   logical            :: iexist
-  character(len=200) :: fileout, analysis_opt(nana_opts)
+  character(len=200) :: fileout
+  ! character(len=200) :: analysis_opt(nana_opts)
 
   ! integer,            :: choice
-  real               :: density_cutoff
-  real               :: com(3), vcom(3)
-  real               :: L1_projection
-
-  ! save from another snapshot
-  real, save         :: evectors_old(3)
-  real, save         :: omega_old(3)
-  real, save         :: time_old
 
   ! for L1 calculation
+  real               :: L1_projection
   real, pointer      :: xyzh_(:,:), vxyzu_(:,:)
   real               :: particlemass_
   integer            :: npart_
@@ -76,8 +74,10 @@ contains
     real, target,     intent(inout) :: xyzh(:,:), vxyzu(:,:)
     real,             intent(in)    :: particlemass, time
 
+    real                            :: density_cutoff
+
     if(firstcall) then
-      evectors_old = 0.
+      evector_old = 0.
       omega_old = 0.
       time_old = 0.
     endif
@@ -92,15 +92,15 @@ contains
     !
 
     !--Reset centre of mass
-    call reset_centreofmass(npart,xyzh,vxyzu)
+    call reset_centreofmass(npart, xyzh, vxyzu)
 
     !--Calculate the centre of mass and velocity of the system
-    call get_centreofmass(com,vcom,npart,xyzh,vxyzu)
+    call get_centreofmass(com, vcom, npart, xyzh, vxyzu)
 
     density_cutoff = density_cutoff_cgs / unit_density
 
     !--Calculate the moment of inertia tensor
-    call calculate_I(dumpfile, xyzh, vxyzu, time, npart, iunit, particlemass)
+    call calculate_I(dumpfile, xyzh, vxyzu, time, npart, density_cutoff, iunit, particlemass)
 
     call trace_com(dumpfile, xyzh, vxyzu, time, npart, iunit, particlemass)
 
@@ -189,7 +189,7 @@ contains
 
     inquire(file=fileout,exist=iexist)
 
-    if(.not.iexist .or. firstcall) then
+    if(firstcall .or. .not.iexist) then
       open(iunit,file=fileout,status='replace')
       write(iunit,"('#',23(1x,'[',i2.2,1x,a11,']',2x))") &
         1, 'time',   &
@@ -225,7 +225,7 @@ contains
     iA = 1
     iB = 1
     do i = 1, npart
-      if(dot_product(xyzh(1:3,i), evectors_old) >= L1_projection) then
+      if(dot_product(xyzh(1:3,i), evector_old) >= L1_projection) then
         xyzhA(:,iA) = xyzh(:,i)
         vxyzuA(:,iA) = vxyzu(:,i)
         iA = iA + 1
@@ -261,12 +261,12 @@ contains
 ! Calculate T/W using brute force
 !+
 !-----------------------------------------------------------------------
-  subroutine calculate_TW(dumpfile,xyzh,vxyzu,time,npart,iunit,particlemass)
+  subroutine calculate_TW(dumpfile,xyzh,vxyzu,time,npart,density_cutoff,iunit,particlemass)
 
     character(len=*), intent(in) :: dumpfile
     integer,          intent(in) :: npart,iunit
     real,             intent(in) :: xyzh(:,:),vxyzu(:,:)
-    real,             intent(in) :: particlemass,time
+    real,             intent(in) :: density_cutoff,particlemass,time
     integer                      :: i,j,npartmeasured
     real                         :: rcrossvx,rcrossvy,rcrossvz,radxy2,radyz2,radxz2,rad2,rmax2
     real                         :: erot,erotx,eroty,erotz,grav
@@ -372,17 +372,20 @@ contains
 !   and L1 point coordinates
 !+
 !-----------------------------------------------------------------------
-  subroutine calculate_I(dumpfile,xyzh,vxyzu,time,npart,iunit,particlemass)
+  subroutine calculate_I(dumpfile,xyzh,vxyzu,time,npart,density_cutoff,iunit,particlemass)
 
     character(len=*), intent(in) :: dumpfile
-    integer,          intent(in) :: npart,iunit
+    real,             intent(in) :: time
+    integer,          intent(in) :: npart
     real,             intent(in) :: xyzh(:,:), vxyzu(:,:)
-    real,             intent(in) :: particlemass,time
+    real,             intent(in) :: density_cutoff
+    integer,          intent(in) :: iunit
+    real,             intent(in) :: particlemass
 
     integer                      :: npartused
-    real                         :: rmax,smallI,medI,bigI
+    real                         :: rmax, smallI, medI, bigI
     integer                      :: smallIIndex, middleIIndex, bigIIndex
-    real                         :: principle(3),evectors(3,3),ellipticity(2)
+    real                         :: principle(3), evectors(3,3), ellipticity(2)
     real                         :: omega(3)
     real                         :: omega_mean(3)
     real                         :: L1(3)
@@ -423,7 +426,7 @@ contains
     endif
     !
     !--Calculate the tensor
-    call get_momentofinertia(xyzh,npart,npartused,principle,evectors,particlemass,rmax)
+    call get_momentofinertia(xyzh, npart, density_cutoff, particlemass, npartused, principle, evectors, rmax)
     !
     !--Sort the principle moments, since ellipticity depends on it.
     smallIIndex = minloc(principle, dim=1)
@@ -438,9 +441,13 @@ contains
     ellipticity(2) = sqrt(2.0*(bigI-medI)/medI)
 
     ! Calculate omega
-    omega = calculate_omega(smallIIndex, evectors, time)
+    omega = calculate_omega(evectors(:, smallIIndex), evector_old, time, time_old, omega_old)
     write(*,*) "Omega coords = ", omega
     write(*,*) "Omega norm2 = ", norm2(omega)
+
+    evector_old = evectors(:, smallIIndex)
+    omega_old = omega
+    time_old = time
 
     ! NB: only for full dumpfile
     omega_mean = calculate_mean_omega(npart, xyzh, vxyzu)
@@ -461,42 +468,6 @@ contains
       real(npart-npartused), npartused*particlemass, rmax
 
   end subroutine calculate_I
-!-----------------------------------------------------------------------
-! Function for finding omega vector from changes of the eigenvector
-!  that correspond to the smallest eigenvalue
-!-------------------------------------------------------------
-  function calculate_omega(index,evectors,time) result(omega)
-
-    use vectorutils, only:cross_product3D
-
-    integer,          intent(in) :: index
-    real,             intent(inout) :: evectors(3,3)
-    real,             intent(in) :: time
-
-    real                         :: omega(3)
-    real                         :: dRdt(3)
-
-    ! Calculate omega
-    dRdt = 0.
-    omega = 0.
-
-    if(time > time_old) then
-      dRdt = (evectors(:, index) - evectors_old)/(time - time_old)
-      call cross_product3D(evectors(:, index),dRdt,omega)
-      ! NB: change sign of evectors if need it
-      if(omega_old(3)*omega(3) < 0.0) then
-        evectors(:,index) = -1.*evectors(:,index)
-        dRdt = (evectors(:, index) - evectors_old)/(time - time_old)
-        call cross_product3D(evectors(:, index),dRdt,omega)
-      endif
-      omega = omega/(norm2(evectors(:, index))**2)
-    endif
-
-    evectors_old = evectors(:, index)
-    omega_old = omega
-    time_old = time
-
-  end function calculate_omega
 !-------------------------------------------------------------
 ! Function to find mean omega vector from a list
 ! of positions and velocities
@@ -513,7 +484,7 @@ contains
     integer :: i
 
     l = 0.
-    do i=1,n
+    do i = 1,n
       call cross_product3D(xyz(:,i),vxyz(:,i),li)
       li = li/norm2(xyz(:,i))**2
       l = l + li
@@ -526,13 +497,14 @@ contains
 !  Determines the radial profile of the midplane (of a given thickness)
 !+
 !-----------------------------------------------------------------------
-  subroutine calculate_midplane_profile(dumpfile,xyzh,vxyzu,npart,iunit,particlemass)
+  subroutine calculate_midplane_profile(dumpfile,xyzh,vxyzu,npart,density_cutoff,iunit,particlemass)
 
     use part, only: alphaind
 
     character(len=*), intent(in) :: dumpfile
     integer,          intent(in) :: npart,iunit
     real,             intent(in) :: xyzh(:,:),vxyzu(:,:)
+    real,             intent(in) :: density_cutoff
     real,             intent(in) :: particlemass
     integer,          parameter  :: nbins = 800
     integer                      :: i,j,npartused,zloc,majorloc,minorloc
@@ -603,7 +575,7 @@ contains
 !$omp end parallel
     !
     !--Calculate moment of inertia
-    call get_momentofinertia(xyzh,npart,npartused,principle,evectors,particlemass,rmax)
+    call get_momentofinertia(xyzh, npart, density_cutoff, particlemass, npartused, principle, evectors, rmax)
     !
     !--Find location of major and minor axes
     zloc = maxloc(evectors(3,:),1)
@@ -690,262 +662,6 @@ contains
 !
   end subroutine calculate_midplane_profile
 !-----------------------------------------------------------------------
-!+
-! Calculates the moment of inertia
-! This is done about the coordinate axes whose origin is at the
-!   centre of mass
-! Mechanics, Third Edition: Volume 1 (Course of Theoretical Physics)
-!   L. Landau, and E. Lifshitz. eq. 32.6
-!+
-!-----------------------------------------------------------------------
-  subroutine get_momentofinertia(xyzh,npart,npartused,principle,evectors,particlemass,rmax)
-
-    integer,          intent(in)  :: npart
-    integer,          intent(out) :: npartused
-    real,             intent(in)  :: xyzh(:,:)
-    real,             intent(in)  :: particlemass
-    real,             intent(out) :: principle(3), evectors(3,3),rmax
-    integer                       :: i
-    real                          :: inertia(3,3)
-#ifdef LAPACK
-    real                          :: inertia2(3,3)
-#endif
-    real                          :: x,y,z,r2,rmax2
-
-    inertia   = 0.
-    npartused = 0
-    rmax2     = 0.0
-
-    do i = 1, npart
-      if(rhoh(xyzh(4,i),particlemass) > density_cutoff) then
-        x = xyzh(1,i) - com(1)
-        y = xyzh(2,i) - com(2)
-        z = xyzh(3,i) - com(3)
-        inertia(1,1) = inertia(1,1) + y**2 + z**2
-        inertia(2,2) = inertia(2,2) + x**2 + z**2
-        inertia(3,3) = inertia(3,3) + x**2 + y**2
-        inertia(1,2) = inertia(1,2) - x*y
-        inertia(1,3) = inertia(1,3) - x*z
-        inertia(2,3) = inertia(2,3) - y*z
-        ! Additional useful values
-        npartused    = npartused + 1
-        r2           = x*x + y*y + z*z
-        rmax2        = max(rmax2, r2)
-      endif
-    enddo
-    rmax = sqrt(rmax2)
-    !--The symmetric components
-    inertia(2,1) = inertia(1,2)
-    inertia(3,1) = inertia(1,3)
-    inertia(3,2) = inertia(2,3)
-    !--Multiply in constant
-    inertia      = inertia*particlemass
-    !
-#ifdef LAPACK
-    inertia2 = inertia
-#endif
-    !
-    !--Find the eigenvectors
-    !  note: i is a dummy out-integer that we don't care about
-    !
-#ifndef LAPACK
-    call jacobi(inertia,3,3,principle,evectors,i)
-
-    ! write(*,*) 'Eigenvalues JACOBI:'
-    ! do i = 1, 3
-    !   write(*,*) i, principle(i)
-    ! enddo
-    ! write(*,*)
-    ! write(*,*) 'Eigenvectors JACOBI:'
-    ! do i = 1, 3
-    !   write(*,*) i, evectors(:,i)
-    ! enddo
-    ! write(*,*)
-#else
-    call eigensystem(inertia,3,principle)
-    evectors = inertia
-    ! call eigensystem(inertia2,3,principle)
-    ! evectors = inertia2
-
-    write(*,*) 'Eigenvalues LAPACK:'
-    do i = 1, 3
-      write(*,*) i, principle(i)
-    enddo
-    write(*,*)
-    write(*,*) 'Eigenvectors LAPACK:'
-    do i = 1, 3
-      write(*,*) i, evectors(:,i)
-    enddo
-    write(*,*)
-#endif
-    !
-  end subroutine get_momentofinertia
-!-----------------------------------------------------------------------
-!+
-! LAPACK: DSYEV computes the eigenvalues and, optionally,
-!   the left and/or right eigenvectors for SY matrices
-! Calls the LAPACK diagonalization subroutine DSYEV
-! input:  a(n,n) = real symmetric matrix to be diag
-!         n  = size of a
-! output: a(n,n) = orthonormal eigenvectors of a
-!         v(n) = eigenvalues of a in ascending order
-!+
-!-----------------------------------------------------------------------
-#ifdef LAPACK
-  subroutine eigensystem(a,n,v)
-
-    integer, intent(in)    :: n
-    real,    intent(inout) :: a(n,n)
-    real,    intent(out) :: v(n)
-
-    integer :: lda
-    real(kind=8) :: work(3*n-1)
-    integer :: lwork
-    integer :: info
-    integer :: i
-
-    info = 0
-    lda = n
-    lwork = 3*n-1
-    call dsyev('V','U',n,a,lda,v,work,lwork,info)
-    if(info < 0) then
-      write(*,'(a, i3, a)') "INFO = ", info,&
-        " the i-th argument had an illegal value"
-    else if(info < 0) then
-      write(*,'(a, i3, a)') "INFO = ", info,&
-        " the algorithm failed to converge;&
-      & i off-diagonal elements of an intermediate tridiagonal&
-      & form did not converge to zero."
-    endif
-
-  end subroutine eigensystem
-#endif
-!-----------------------------------------------------------------------
-!+
-! Calculates the Jacobian
-! Source: http://www.fing.edu.uy/if/cursos/fiscomp/extras/numrec/book/f11.pdf
-!+
-!-----------------------------------------------------------------------
-  subroutine jacobi(a,n,np,d,v,nrot)
-
-    integer, intent(in)    :: n,np
-    integer, intent(out)   :: nrot
-    real,    intent(inout) :: a(np,np)
-    real,    intent(out)   :: d(np),v(np,np)
-    integer, parameter :: nmax = 500
-!
-! Computes all eigenvalues and eigenvectors of a real symmetric matrix, a,
-!   which is of size n by n, stored in a physical np by np array.
-! On output, elements of a above the diagonal are destroyed.
-! d returns the eigenvalues of a in its first n elements.
-! v is a matrix with the same logical and physical dimensions as a,
-!   whose columns contain, on output, the normalized eigenvectors of a.
-! nrot returns the number of Jacobi rotations that were required.
-!
-    integer :: i,ip,iq,j
-    real :: c,g,h,s,sm,t,tau,theta,tresh,b(NMAX),z(NMAX)
-
-    do 12, ip=1,n  !Initialize  to  the  identity  matrix.
-      do 11, iq=1,n
-        v(ip,iq)=0.
-11    enddo
-      v(ip,ip)=1.
-12  enddo
-    do 13, ip=1,n
-      b(ip)=a(ip,ip)
-!Initialize b and d to the diagonal of a.
-      d(ip)=b(ip)
-      z(ip)=0.
-!This  vector  will  accumulate  terms  of  the  form tapq as  in equation  (11.1.14).
-13  enddo
-
-    nrot=0
-    do 24,i=1,50
-      sm=0.
-      do 15,ip=1,n-1
-!Sum  off-diagonal elements.
-        do 14,iq=ip+1,n
-          sm=sm+abs(a(ip,iq))
-14      enddo
-15    enddo
-      if(sm==0.)&
-        return
-!The normal return, which relies on quadratic convergence to machine  underflow.
-      if(i < 4) then
-        tresh=0.2*sm/n**2
-!...on the first  three sweeps.
-      else
-        tresh=0.
-!...thereafter.
-      endif
-      do 22,ip=1,n-1
-        do 21,iq=ip+1,n
-          g=100.*abs(a(ip,iq))
-!After four sweeps, skip the rotation if the off-diagonal element is small.
-          if((i > 4).and.(abs(d(ip))+g==abs(d(ip))).and.(abs(d(iq))+g==abs(d(iq)))) then
-            a(ip,iq)=0.
-          elseif (abs(a(ip,iq)) > tresh) then
-            h=d(iq)-d(ip)
-            if(abs(h)+g==abs(h)) then
-              t=a(ip,iq)/h
-!t=1/(2(theta))
-            else
-              theta=0.5*h/a(ip,iq)
-!Equation  (11.1.10).
-              t=1./(abs(theta)+sqrt(1.+theta**2))
-              if(theta < 0.)t=-t
-            endif
-            c=1./sqrt(1+t**2)
-            s=t*c
-            tau=s/(1.+c)
-            h=t*a(ip,iq)
-            z(ip)=z(ip)-h
-            z(iq)=z(iq)+h
-            d(ip)=d(ip)-h
-            d(iq)=d(iq)+h
-            a(ip,iq)=0.
-            do 16,j=1,ip-1
-!Case of rotations 1<=j<p.
-              g=a(j,ip)
-              h=a(j,iq)
-              a(j,ip)=g-s*(h+g*tau)
-              a(j,iq)=h+s*(g-h*tau)
-16          enddo
-            do 17,j=ip+1,iq-1
-!Case of rotations p<j<q.
-              g=a(ip,j)
-              h=a(j,iq)
-              a(ip,j)=g-s*(h+g*tau)
-              a(j,iq)=h+s*(g-h*tau)
-17          enddo
-            do 18,j=iq+1,n
-!Case of rotations q<j<=n.
-              g=a(ip,j)
-              h=a(iq,j)
-              a(ip,j)=g-s*(h+g*tau)
-              a(iq,j)=h+s*(g-h*tau)
-18          enddo
-            do 19,j=1,n
-              g=v(j,ip)
-              h=v(j,iq)
-              v(j,ip)=g-s*(h+g*tau)
-              v(j,iq)=h+s*(g-h*tau)
-19          enddo
-            nrot=nrot+1
-          endif
-21      enddo
-22    enddo
-      do 23,ip=1,n
-        b(ip)=b(ip)+z(ip)
-        d(ip)=b(ip)
-!Update d with the  sum of tapq,
-        z(ip)=0.
-!and  reinitialize z.
-23    enddo
-24  enddo
-    return
-  end subroutine jacobi
-!-----------------------------------------------------------------------
 ! line - is a unit vector in the direction of the line
 ! point - vector to the point
 !-----------------------------------------------------------------------
@@ -969,7 +685,7 @@ contains
   end function distance_to_line
 !-----------------------------------------------------------------------
 ! Finding the value of the gravitational potential by Lagrange interpolation method
-! Due to the factorial growth in the numerator and denominator this method apears unsuccessful
+! NB: Due to the factorial growth in the numerator and denominator this method apears unsuccessful!
 !-----------------------------------------------------------------------
   real function interpolate_potential_lagrange(p, x, y, npoints) result(phi)
 
@@ -1023,7 +739,7 @@ contains
 
     potential = 0.
 
-    point = p*evectors_old
+    point = p*evector_old
 
     do i = 1, npart
 
@@ -1100,7 +816,7 @@ contains
     f = 0.
     df = 0.
 
-    point = p*evectors_old
+    point = p*evector_old
 
     do i = 1, npart
 
@@ -1375,7 +1091,7 @@ contains
         write(*,*) nIter, pNew, residual
       end do
 
-      L1 = p*evectors_old
+      L1 = p*evector_old
       write(*,*) "L1 by Newton's method - ", L1, p
 
     else
@@ -1391,7 +1107,7 @@ contains
         maxIter, Nest, nIter,&
         roche_potential_wrapper)
 
-      L1 = p*evectors_old
+      L1 = p*evector_old
 
       if(extr == 1)  write(*,*) 'Minimum'
       if(extr == -1) write(*,*) 'Maximum'

@@ -35,6 +35,13 @@
         "/home/marat/phys/phantom/phantom_test/test/",
         "analysis"
       ],
+      "osx": {
+        "args": [
+          "-C",
+          "/Users/marat/Documents/phys/phantom_test/",
+          "analysis"
+        ],
+      },
       "group": {
         "kind": "build",
         "isDefault": true
@@ -55,6 +62,13 @@
         "/home/marat/phys/phantom/phantom_test/test/",
         "clean"
       ],
+      "osx": {
+        "args": [
+          "-C",
+          "/Users/marat/Documents/phys/phantom_test/",
+          "clean"
+        ],
+      },
       "group": {
         "kind": "build",
         "isDefault": true

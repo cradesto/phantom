@@ -13,6 +13,12 @@
       "args": [
         "/home/marat/phys/phantom/phantom_test/test/binary_00100"
       ],
+      "osx": {
+        "program": "/Users/marat/Documents/phys/phantom_test/phantomanalysis",
+        "args": [
+          "/Users/marat/Documents/phys/phantom_test/binary_00000"
+        ],
+      },
       "internalConsoleOptions": "openOnSessionStart",
       "logging": {
         "moduleLoad": true,

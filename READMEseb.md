@@ -9,6 +9,8 @@ Host leo
    ProxyJump gray
    HostKeyAlias leo
    CheckHostIP no
+-- это старый заход на leo, когда он был через cisco, теперь
+ Hostname 144.206.145.66
 
 .alias:
 

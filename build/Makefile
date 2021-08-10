@@ -1077,15 +1077,15 @@ endif
 
 ifeq ($(SETUP), stripping)
 #   single (option 2) or binary (option 3) polytrope test
-    SETUPFILE   = setup_star.f90
-    ANALYSIS    = analysis_stripping.f90
-    GRAVITY     = yes
-    # GWS         = yes # is it necessary?
-    ISOTHERMAL  = yes
-    MODFILE     = moddump_binarystar.f90
-    KNOWN_SETUP = yes
+    SETUPFILE     = setup_star.f90
+    ANALYSIS      = analysis_stripping.f90
+    IND_TIMESTEPS = no
+    GRAVITY       = yes
+    ISOTHERMAL    = yes
+    MODFILE       = moddump_binarystar.f90
+    KNOWN_SETUP   = yes
     # LAPACK      = yes
-    SRCPOT      = ${SRCPOTS:extern_gwinspiral.f90=extern_gwinspiral_stripping.f90}
+    SRCPOT        = ${SRCPOTS:extern_gwinspiral.f90=extern_gwinspiral_stripping.f90}
 endif
 
 ifeq ($(SETUP), evrard)

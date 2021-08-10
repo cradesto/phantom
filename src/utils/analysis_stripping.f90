@@ -191,30 +191,33 @@ contains
 
     if(firstcall .or. .not.iexist) then
       open(iunit,file=fileout,status='replace')
-      write(iunit,"('#',23(1x,'[',i2.2,1x,a11,']',2x))") &
+      write(iunit,"('#',26(1x,'[',i2.2,1x,a11,']',2x))") &
         1, 'time',   &
-        2, 'x_A',    &
-        3, 'y_A',    &
-        4, 'z_A',    &
-        5, 'x_B',    &
-        6, 'y_B',    &
-        7, 'z_B',    &
-        8, 'd',      &
-        9, 'm_A',    &
-        10,'m_B',    &
-        11,'dm',     &
-        12,'L_tot,1',&
-        13,'L_tot,2',&
-        14,'L_tot,3',&
-        15,'L_A,1',  &
-        16,'L_A,2',  &
-        17,'L_A,3',  &
-        18,'L_B,1',  &
-        19,'L_B,2',  &
-        20,'L_B,3',  &
-        21,'n L_tot',&
+        2, 'xcom',   &
+        3, 'ycom',   &
+        4, 'zcom',   &
+        5, 'x_A',    &
+        6, 'y_A',    &
+        7, 'z_A',    &
+        8, 'x_B',    &
+        9, 'y_B',    &
+        10,'z_B',    &
+        11,'d',      &
+        12,'m_A',    &
+        13,'m_B',    &
+        14,'dm',     &
+        15,'L_tot,1',&
+        16,'L_tot,2',&
+        17,'L_tot,3',&
+        18,'n L_tot',&
+        19,'L_A,1',  &
+        20,'L_A,2',  &
+        21,'L_A,3',  &
         22,'n L_A',  &
-        23,'n L_B'
+        23,'L_B,1',  &
+        24,'L_B,2',  &
+        25,'L_B,3',  &
+        26,'n L_B'
     else
       open(iunit,file=fileout,position='append')
     endif
@@ -247,11 +250,21 @@ contains
     call get_total_angular_momentum(xyzhB, vxyzuB, npartB, L_B)
     call get_total_angular_momentum(xyzh, vxyzu, npart, L_tot)
 
-    write(iunit,'(23(es18.10,1x))') time, xposA, xposB, sep,&
-      npartA*particlemass, npartB*particlemass,&
+    write(iunit,'(26(es18.10,1x))')&
+      time,&
+      com,&
+      xposA,&
+      xposB,&
+      sep,&
+      npartA*particlemass,&
+      npartB*particlemass,&
       abs(npartA*particlemass - npartB*particlemass),&
-      L_tot, L_A, L_B,&
-      norm2(L_tot), norm2(L_A), norm2(L_B)
+      L_tot,&
+      norm2(L_tot),&
+      L_A,&
+      norm2(L_A),&
+      L_B,&
+      norm2(L_B)
 
     close(iunit)
     !

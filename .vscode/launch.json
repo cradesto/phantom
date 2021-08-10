@@ -9,9 +9,16 @@
       "type": "cppdbg",
       "request": "launch",
       "targetArchitecture": "x86_64",
-      "program": "/home/marat/phys/phantom/phantom_test/test/phantomanalysis",
+      // "program": "/home/marat/phys/phantom/phantom_test/test_gw/phantommoddump",
+      // "args": [
+      //   // "/home/marat/phys/phantom/phantom_test/test/binary_00100"
+      //   "/home/marat/phys/phantom/phantom_test/test_gw/star_m1_00100",
+      //   "/home/marat/phys/phantom/phantom_test/test_gw/binary_00000.tmp",
+      //   "0.0"
+      // ],
+      "program": "/home/marat/phys/phantom/phantom_test/test_gw/phantom",
       "args": [
-        "/home/marat/phys/phantom/phantom_test/test/binary_00100"
+        "/home/marat/phys/phantom/phantom_test/test_gw/star_m1.in"
       ],
       "osx": {
         "program": "/Users/marat/Documents/phys/phantom/phantom_test/m1_1.4Msun_r1_10km_m2_0.5Msun_r2_10km_d_36km/phantomanalysis",

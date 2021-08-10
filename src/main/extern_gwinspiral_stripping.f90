@@ -57,7 +57,9 @@ module extern_gwinspiral
   !
   ! subroutines
   !
-  public :: initialise_gwinspiral, gw_still_inspiralling, get_gw_force, get_gw_force_i
+  public :: initialise_gwinspiral, gw_still_inspiralling
+  public :: get_gw_force, get_gw_force_i
+  ! public :: get_gwinspiral_vdependent_force, update_gwinspiral_leapfrog
   public :: get_momentofinertia, calculate_omega
   public :: read_options_gwinspiral, write_options_gwinspiral
   public :: read_headeropts_gwinspiral, write_headeropts_gwinspiral
@@ -101,9 +103,10 @@ contains
     endif
     if(nerr > 0) ierr = 1
 
-    evector_old = 0.
-    omega_old = 0.
-    time_old = 0.
+    evector_old = 0.d0
+    omega_old = 0.d0
+    time_old = 0.d0
+    fstar_tensor_coef = 0.d0
 
   end subroutine initialise_gwinspiral
 !-----------------------------------------------------------------------
@@ -261,6 +264,8 @@ contains
       !
       ! Compute the drag force vectors for each star
       !
+      ! fstar1_coef = -1.d2
+      ! fstar2_coef = -1.d2
       fstar1 = fstar1_coef * vcomstar1 / (vstar1sq*separation**5)
       fstar2 = fstar2_coef * vcomstar2 / (vstar2sq*separation**5)
     endif
@@ -269,82 +274,35 @@ contains
     ! NB: only for two stars in stripping scenario
 
     c_code = c/unit_velocity
-    fstar_tensor_coef = 0.d0
     if(nstar(1) > 0) then
-      ! Calculate the inertia tensor
-      call get_momentofinertia(xyzh, npart, m_density_cutoff, particlemass, npartused, principle, evectors, rmax)
+      ! two stars in stripping scenario
 
-      smallIIndex = minloc(principle, dim=1)
+      if(time > time_old) then
 
-      omega = calculate_omega(evectors(:, smallIIndex), evector_old, time, time_old, omega_old)
+        ! Calculate the inertia tensor
+        call get_momentofinertia(xyzh, npart, m_density_cutoff, particlemass, npartused, principle, evectors, rmax)
 
-      evector_old = evectors(:, smallIIndex)
-      omega_old = omega
-      time_old = time
+        smallIIndex = minloc(principle, dim=1)
 
-      call dquadrupole5(npart,xyzh,omega,particlemass,d5q)
-      fstar_tensor_coef = -2.d0/5.d0*d5q/c_code**5
+        omega = calculate_omega(evectors(:, smallIIndex), evector_old, time, time_old, omega_old)
+        ! write(*,*) 'time = ', time, 'omega = ', omega
+
+        evector_old = evectors(:, smallIIndex)
+        omega_old = omega
+        time_old = time
+
+        call dquadrupole5(npart,xyzh,omega,particlemass,d5q)
+        fstar_tensor_coef = -2.d0/5.d0*d5q/c_code**5
+      endif
+
     endif
 
   end subroutine get_gw_force
 !-----------------------------------------------------------------------
-! Calculate the fifth time derivative of the quadrupole moments
-!-----------------------------------------------------------------------
-  subroutine dquadrupole5(npart,xyzh,omega,particlemass,d5q)
-
-    integer, intent(in) :: npart
-    real,    intent(in) :: xyzh(:,:)
-    real,    intent(in) :: omega(3)
-    real,    intent(in) :: particlemass
-    real,    intent(out):: d5q(3,3)
-
-    real                :: omega2sq
-    real                :: omegax
-    integer             :: i, ia, ib, ii, ik
-    real                :: coeff
-
-    d5q = 0.d0
-    coeff = 0.d0
-
-    omega2sq = dot_product(omega, omega)
-
-    do i = 1, npart
-      omegax = dot_product(omega,xyzh(i,1:3))
-
-      do ii = 1, 3
-        do ia = 1, 3
-          do ib = 1, 3
-            coeff = coeff + levicivita(ii,ia,ib)*omega(ia)*xyzh(i,ib)
-          enddo
-        enddo
-        do ik = 1, 3
-          d5q(ii,ik) = d5q(ii,ik) +&
-            (16.d0*xyzh(i,ik)*omega2sq -&
-              15.d0*omega(ik)*omegax)*coeff
-        enddo
-      enddo
-
-      do ik = 1, 3
-        do ia = 1, 3
-          do ib = 1, 3
-            coeff = coeff + levicivita(ik,ia,ib)*omega(ia)*xyzh(i,ib)
-          enddo
-        enddo
-        do ii = 1, 3
-          d5q(ii,ik) = d5q(ii,ik) +&
-            (16.d0*xyzh(i,ii)*omega2sq -&
-              15.d0*omega(ii)*omegax)*coeff
-        enddo
-      enddo
-    enddo
-    d5q = d5q*omega2sq*particlemass
-
-  end subroutine dquadrupole5
-!-----------------------------------------------------------------------
 !+
 !  Calculate the loss of energy (per particle) from gravitational waves
-!  i.e. determine if the particle is in star 1, or star 2, and use the
-!       required force
+!    i.e. determine if the particle is in star 1, or star 2, and use the
+!    required force
 !+
 !-----------------------------------------------------------------------
   subroutine get_gw_force_i(i,xi,yi,zi,fextxi,fextyi,fextzi,phi)
@@ -363,7 +321,7 @@ contains
 
     ! the old version of drag force calculation
 
-    if(isseparate ) then
+    if(isseparate) then
       if(i <= nstar(1)) then
         fextxi = fstar1(1)
         fextyi = fstar1(2)
@@ -374,7 +332,7 @@ contains
         fextzi = fstar2(3)
       endif
     elseif (i == -1 .and. nstar(2)==0 .and. isseparate) then
-      fextxi = fstar2(1)  ! acceleration applied to sink particle 1 (star 2)
+      fextxi = fstar2(1) ! acceleration applied to sink particle 1 (star 2)
       fextyi = fstar2(2)
       fextzi = fstar2(3)
     elseif (i == -2 .and. nstar(1)==0 .and. isseparate) then
@@ -383,22 +341,60 @@ contains
       fextzi = fstar1(3)
     endif
 
+    ! write(*,*) 'i = ', i, xi, yi, zi
+    ! write(*,*) 'f1 = ', i, fextxi, fextyi, fextzi
+
     ! the new one version of gw drag force
     ! NB: only for two stars in stripping scenario
 
     if(nstar(1) > 0) then
-      fextxi = fextxi + fstar_tensor_coef(1,1)*xi&
+      fextxi = fstar_tensor_coef(1,1)*xi&
         + fstar_tensor_coef(1,2)*yi&
         + fstar_tensor_coef(1,3)*zi
-      fextyi = fextyi + fstar_tensor_coef(2,1)*xi&
+      fextyi = fstar_tensor_coef(2,1)*xi&
         + fstar_tensor_coef(2,2)*yi&
         + fstar_tensor_coef(2,3)*zi
-      fextzi = fextzi + fstar_tensor_coef(3,1)*xi&
+      fextzi = fstar_tensor_coef(3,1)*xi&
         + fstar_tensor_coef(3,2)*yi&
         + fstar_tensor_coef(3,3)*zi
     endif
 
+    ! write(*,*) 'f2 = ', i, fextxi, fextyi, fextzi
+
   end subroutine get_gw_force_i
+!---------------------------------------------------------------
+!+
+!+
+!---------------------------------------------------------------
+  ! subroutine get_gwinspiral_vdependent_force(r,vel,bh_mass,vcrossomega)
+
+  !   use vectorutils, only: cross_product3D
+
+  !   real, intent(in)  :: r(3),vel(3)
+  !   real, intent(in)  :: bh_mass
+  !   real, intent(out) :: vcrossomega(3)
+
+  !   vcrossomega = 0.d0
+
+  ! end subroutine get_gwinspiral_vdependent_force
+!---------------------------------------------------------------
+!+
+!+
+!---------------------------------------------------------------
+  ! subroutine update_gwinspiral_leapfrog(vhalfx,vhalfy,vhalfz,fxi,fyi,fzi,&
+  !   vcrossomega,dt,xi,yi,zi,bh_mass)
+
+  !   use vectorutils, only : cross_product3D,matrixinvert3D
+  !   use io,          only : fatal,warning
+
+  !   real, intent(in)    :: dt,xi,yi,zi,bh_mass
+  !   real, intent(in)    :: vhalfx,vhalfy,vhalfz
+  !   real, intent(inout) :: fxi,fyi,fzi
+  !   real, intent(out)   :: vcrossomega(3)
+
+  !   vcrossomega = 0.d0
+
+  ! end subroutine update_gwinspiral_leapfrog
 !-----------------------------------------------------------------------
 !+
 ! Calculates the moment of inertia
@@ -460,9 +456,9 @@ contains
 #endif
     !
     !--Find the eigenvectors
-    !  note: i is a dummy out-integer that we don't care about
     !
 #ifndef LAPACK
+    !  note: i is a dummy out-integer that we don't care about
     call jacobi(inertia,3,3,principle,evectors,i)
 
     ! write(*,*) 'Eigenvalues JACOBI:'
@@ -660,17 +656,6 @@ contains
     return
   end subroutine jacobi
 !-----------------------------------------------------------------------
-! Returns the Levi-Civita-Symbol (permutation symbol)
-!-----------------------------------------------------------------------
-  pure function levicivita (idmi,idmj,idmk) result(lc)
-
-    integer, intent(in)           :: idmi, idmj, idmk
-    real(8)                       :: lc
-
-    lc = 0.5d0 * (idmi - idmj) * (idmj - idmk) * (idmk - idmi)
-
-  end function
-!-----------------------------------------------------------------------
 ! Function for finding omega vector from changes of the eigenvector
 !-----------------------------------------------------------------------
   function calculate_omega(evector,evector_prev,time,time_prev,omega_prev) result(omega)
@@ -703,6 +688,63 @@ contains
     endif
 
   end function calculate_omega
+!-----------------------------------------------------------------------
+! Calculate the fifth time derivative of the quadrupole moments
+!-----------------------------------------------------------------------
+  subroutine dquadrupole5(npart,xyzh,omega,particlemass,d5q)
+
+    integer, intent(in) :: npart
+    real,    intent(in) :: xyzh(:,:)
+    real,    intent(in) :: omega(3)
+    real,    intent(in) :: particlemass
+    real,    intent(out):: d5q(3,3)
+
+    real                :: omegasq
+    real                :: omegari
+    integer             :: i, ia, ib, ii, ik
+    real                :: coeff(3)
+
+    d5q = 0.d0
+
+    omegasq = dot_product(omega, omega)
+
+    do i = 1, npart
+      omegari = dot_product(omega, xyzh(1:3,i))
+
+      coeff = 0.d0
+      do ii = 1, 3
+        do ia = 1, 3
+          do ib = 1, 3
+            coeff(ii) = coeff(ii) + levicivita(ii,ia,ib)*omega(ia)*xyzh(ib,i)
+          enddo
+        enddo
+      enddo
+
+      do ii = 1, 3
+        do ik = 1, 3
+          d5q(ii,ik) = d5q(ii,ik) +&
+            (16.d0*xyzh(ik,i)*omegasq -&
+            15.d0*omega(ik)*omegari)*coeff(ii) +&
+            (16.d0*xyzh(ii,i)*omegasq -&
+            15.d0*omega(ii)*omegari)*coeff(ik)
+        enddo
+      enddo
+    enddo
+
+    d5q = d5q*omegasq*particlemass
+
+  end subroutine dquadrupole5
+!-----------------------------------------------------------------------
+! Returns the Levi-Civita-Symbol (permutation symbol)
+!-----------------------------------------------------------------------
+  pure function levicivita (idmi,idmj,idmk) result(lc)
+
+    integer, intent(in)           :: idmi, idmj, idmk
+    real(8)                       :: lc
+
+    lc = 0.5d0 * (idmi - idmj) * (idmj - idmk) * (idmk - idmi)
+
+  end function levicivita
 !-----------------------------------------------------------------------
 !+
 !  writes input options to the input file
@@ -746,7 +788,6 @@ contains
     igotall = (ngot >= 1)
 
   end subroutine read_options_gwinspiral
-
 !-----------------------------------------------------------------------
 !+
 !  writes relevant options to the header of the dump file
@@ -764,7 +805,6 @@ contains
     call add_to_header(nstar(2),'Nstar_2',hdr,ierr)
 
   end subroutine write_headeropts_gwinspiral
-
 !-----------------------------------------------------------------------
 !+
 !  reads relevant options from the header of the dump file

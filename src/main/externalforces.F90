@@ -460,7 +460,14 @@ logical function is_velocity_dependent(iexternalforce)
  integer, intent(in) :: iexternalforce
 
  select case(iexternalforce)
- case(iext_corotate,iext_corot_binary,iext_prdrag,iext_lensethirring,iext_einsteinprec,iext_gnewton)
+ case(iext_corotate,&
+      iext_corot_binary,&
+      iext_prdrag,&
+      iext_lensethirring,&
+      iext_einsteinprec,&
+      iext_gnewton)
+      ! ,&
+      ! iext_gwinspiral)
     is_velocity_dependent = .true.
  case default
     is_velocity_dependent = .false.
@@ -480,6 +487,7 @@ subroutine externalforce_vdependent(iexternalforce,xyzi,veli,fexti,poti,densi,ui
  use extern_prdrag,        only:get_prdrag_vdependent_force
  use extern_lensethirring, only:get_lense_thirring_force
  use extern_gnewton,       only:get_gnewton_vdependent_force
+!  use extern_gwinspiral,    only:get_gwinspiral_vdependent_force
  integer, intent(in)  :: iexternalforce
  real,    intent(in)  :: xyzi(3),veli(3)
  real,    intent(out) :: fexti(3)
@@ -495,6 +503,8 @@ subroutine externalforce_vdependent(iexternalforce,xyzi,veli,fexti,poti,densi,ui
     call get_lense_thirring_force(xyzi,veli,mass1,fexti)
  case(iext_gnewton)
     call get_gnewton_vdependent_force(xyzi,veli,mass1,fexti)
+!  case(iext_gwinspiral)
+   !  call get_gwinspiral_vdependent_force(xyzi,veli,mass1,fexti)
  case default
     fexti(:) = 0.
  end select
@@ -514,6 +524,7 @@ subroutine update_vdependent_extforce_leapfrog(iexternalforce, &
  use extern_prdrag,        only:update_prdrag_leapfrog
  use extern_lensethirring, only:update_ltforce_leapfrog
  use extern_gnewton,       only:update_gnewton_leapfrog
+!  use extern_gwinspiral,    only:update_gwinspiral_leapfrog
  integer, intent(in)    :: iexternalforce
  real,    intent(in)    :: dt,xi,yi,zi
  real,    intent(in)    :: vhalfx,vhalfy,vhalfz
@@ -530,6 +541,8 @@ subroutine update_vdependent_extforce_leapfrog(iexternalforce, &
     call update_ltforce_leapfrog(vhalfx,vhalfy,vhalfz,fxi,fyi,fzi,fexti,dt,xi,yi,zi,mass1)
  case(iext_gnewton)
     call update_gnewton_leapfrog(vhalfx,vhalfy,vhalfz,fxi,fyi,fzi,fexti,dt,xi,yi,zi,mass1)
+!  case(iext_gwinspiral)
+   !  call update_gwinspiral_leapfrog(vhalfx,vhalfy,vhalfz,fxi,fyi,fzi,fexti,dt,xi,yi,zi,mass1)
  end select
 
 end subroutine update_vdependent_extforce_leapfrog

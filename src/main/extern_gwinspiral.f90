@@ -35,9 +35,11 @@ module extern_gwinspiral
  !
  ! subroutines
  !
- public  :: initialise_gwinspiral,gw_still_inspiralling,get_gw_force,get_gw_force_i
- public  :: read_options_gwinspiral, write_options_gwinspiral
- public  :: read_headeropts_gwinspiral, write_headeropts_gwinspiral
+ public :: initialise_gwinspiral, gw_still_inspiralling
+ public :: get_gw_force, get_gw_force_i
+!  public :: get_gwinspiral_vdependent_force, update_gwinspiral_leapfrog
+ public :: read_options_gwinspiral, write_options_gwinspiral
+ public :: read_headeropts_gwinspiral, write_headeropts_gwinspiral
  private
 
 contains
@@ -249,7 +251,40 @@ subroutine get_gw_force_i(i,xi,yi,zi,fextxi,fextyi,fextzi,phi)
  endif
 
 end subroutine get_gw_force_i
+!---------------------------------------------------------------
+!+
+!+
+!---------------------------------------------------------------
+! subroutine get_gwinspiral_vdependent_force(r,vel,bh_mass,vcrossomega)
 
+!  use vectorutils, only: cross_product3D
+
+!  real, intent(in)  :: r(3),vel(3)
+!  real, intent(in)  :: bh_mass
+!  real, intent(out) :: vcrossomega(3)
+!  real :: Omegap(3)
+
+!  vcrossomega = 0.d0
+
+! end subroutine get_gwinspiral_vdependent_force
+!---------------------------------------------------------------
+!+
+!+
+!---------------------------------------------------------------
+!  subroutine update_gwinspiral_leapfrog(vhalfx,vhalfy,vhalfz,fxi,fyi,fzi,&
+!      vcrossomega,dt,xi,yi,zi,bh_mass)
+
+!  use vectorutils, only : cross_product3D,matrixinvert3D
+!  use io,          only : fatal,warning
+
+!  real, intent(in)    :: dt,xi,yi,zi,bh_mass
+!  real, intent(in)    :: vhalfx,vhalfy,vhalfz
+!  real, intent(inout) :: fxi,fyi,fzi
+!  real, intent(out)   :: vcrossomega(3)
+
+!  vcrossomega = 0.d0
+
+!  end subroutine update_gwinspiral_leapfrog
 !-----------------------------------------------------------------------
 !+
 !  writes input options to the input file

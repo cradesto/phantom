@@ -250,20 +250,20 @@ contains
     call get_total_angular_momentum(xyzhB, vxyzuB, npartB, L_B)
     call get_total_angular_momentum(xyzh, vxyzu, npart, L_tot)
 
-    write(iunit,'(26(es18.10,1x))')&
-      time,&
-      com,&
-      xposA,&
-      xposB,&
-      sep,&
-      npartA*particlemass,&
-      npartB*particlemass,&
+    write(iunit,'(26(es18.10,1x))') &
+      time,                         &
+      com,                          &
+      xposA,                        &
+      xposB,                        &
+      sep,                          &
+      npartA*particlemass,          &
+      npartB*particlemass,          &
       abs(npartA*particlemass - npartB*particlemass),&
-      L_tot,&
-      norm2(L_tot),&
-      L_A,&
-      norm2(L_A),&
-      L_B,&
+      L_tot,                        &
+      norm2(L_tot),                 &
+      L_A,                          &
+      norm2(L_A),                   &
+      L_B,                          &
       norm2(L_B)
 
     close(iunit)
@@ -471,14 +471,31 @@ contains
 
     !--Write to file
     write(iunit,'(25(es18.10,1x))') &
-      time, principle(smallIIndex), principle(middleIIndex), principle(bigIIndex),&
-      ellipticity(1), ellipticity(2),&
-      evectors(1,smallIIndex), evectors(2,smallIIndex), evectors(3,smallIIndex),&
-      evectors(1,middleIIndex), evectors(2,middleIIndex), evectors(3,middleIIndex),&
-      evectors(1,bigIIndex), evectors(2,bigIIndex), evectors(3,bigIIndex),&
-      omega(1), omega(2), omega(3), norm2(omega),&
-      L1(1), L1(2), L1(3),&
-      real(npart-npartused), npartused*particlemass, rmax
+      time,                         &
+      principle(smallIIndex),       &
+      principle(middleIIndex),      &
+      principle(bigIIndex),         &
+      ellipticity(1),               &
+      ellipticity(2),               &
+      evectors(1,smallIIndex),      &
+      evectors(2,smallIIndex),      &
+      evectors(3,smallIIndex),      &
+      evectors(1,middleIIndex),     &
+      evectors(2,middleIIndex),     &
+      evectors(3,middleIIndex),     &
+      evectors(1,bigIIndex),        &
+      evectors(2,bigIIndex),        &
+      evectors(3,bigIIndex),        &
+      omega(1),                     &
+      omega(2),                     &
+      omega(3),                     &
+      norm2(omega),                 &
+      L1(1),                        &
+      L1(2),                        &
+      L1(3),                        &
+      real(npart-npartused),        &
+      npartused*particlemass,       &
+      rmax
 
   end subroutine calculate_I
 !-------------------------------------------------------------
@@ -1110,7 +1127,7 @@ contains
     else
 
       ! NB: find correct p1 and p2
-      p1 = -20.
+      p1 = -50.
       p2 = 0.
       eps = threshold
 

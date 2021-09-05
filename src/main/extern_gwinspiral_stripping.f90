@@ -41,16 +41,17 @@ module extern_gwinspiral
   real, save, public :: omega_old(3)
   real, save, public :: time_old
 
+  real,       public :: fstar1(3), fstar2(3)
+  real,       public :: fstar_tensor(3,3)
+  real,       public :: comstar1(3), comstar2(3)
+  real,       public :: vcomstar1(3), vcomstar2(3)
+
   !
   ! local variables
   !
   integer,   private :: n_threshhold
   real,      private :: m_density_cutoff
   real,      private :: fstar1_coef, fstar2_coef
-  real,      private :: fstar1(3), fstar2(3)
-  real,      private :: fstar_tensor_coef(3,3)
-  real,      private :: comstar1(3), comstar2(3)
-  real,      private :: vcomstar1(3), vcomstar2(3)
 
   logical,   private :: isseparate = .true.
 
@@ -106,7 +107,7 @@ contains
     evector_old = 0.d0
     omega_old = 0.d0
     time_old = 0.d0
-    fstar_tensor_coef = 0.d0
+    fstar_tensor = 0.d0
 
   end subroutine initialise_gwinspiral
 !-----------------------------------------------------------------------
@@ -291,8 +292,8 @@ contains
         omega_old = omega
         time_old = time
 
-        call dquadrupole5(npart,xyzh,omega,particlemass,d5q)
-        fstar_tensor_coef = -2.d0/5.d0*d5q/c_code**5
+        call dquadrupole5(npart, xyzh, omega, particlemass, d5q)
+        fstar_tensor = -2.d0/5.d0*d5q/c_code**5
       endif
 
     endif
@@ -311,6 +312,8 @@ contains
     real,    intent(in)    :: xi,yi,zi
     real,    intent(inout) :: fextxi,fextyi,fextzi,phi
 
+    real                   :: d1, d2
+
     fextxi = 0.0
     fextyi = 0.0
     fextzi = 0.0
@@ -318,6 +321,14 @@ contains
     if(i <= 0) then
       return
     endif
+
+    ! d1 = (comstar1(1) - xi)**2.0 + (comstar1(2) - yi)**2.0 + (comstar1(3) - zi)**2.0
+    ! d2 = (comstar2(1) - xi)**2.0 + (comstar2(2) - yi)**2.0 + (comstar2(3) - zi)**2.0
+    ! d1 = sqrt(min(d1, d2))
+
+    ! if(d1 <= 0.2) then
+      ! write(*,*) 'i = ', i, xi, yi, zi, d1
+    ! endif
 
     ! the old version of drag force calculation
 
@@ -341,25 +352,28 @@ contains
       fextzi = fstar1(3)
     endif
 
-    ! write(*,*) 'i = ', i, xi, yi, zi
-    ! write(*,*) 'f1 = ', i, fextxi, fextyi, fextzi
+    ! if(d1 <= 0.2) then
+      ! write(*,*) 'f1 = ', i, fextxi, fextyi, fextzi
+    ! endif
 
     ! the new one version of gw drag force
     ! NB: only for two stars in stripping scenario
 
     if(nstar(1) > 0) then
-      fextxi = fstar_tensor_coef(1,1)*xi&
-        + fstar_tensor_coef(1,2)*yi&
-        + fstar_tensor_coef(1,3)*zi
-      fextyi = fstar_tensor_coef(2,1)*xi&
-        + fstar_tensor_coef(2,2)*yi&
-        + fstar_tensor_coef(2,3)*zi
-      fextzi = fstar_tensor_coef(3,1)*xi&
-        + fstar_tensor_coef(3,2)*yi&
-        + fstar_tensor_coef(3,3)*zi
+      fextxi = fstar_tensor(1,1)*xi&
+        + fstar_tensor(1,2)*yi&
+        + fstar_tensor(1,3)*zi
+      fextyi = fstar_tensor(2,1)*xi&
+        + fstar_tensor(2,2)*yi&
+        + fstar_tensor(2,3)*zi
+      fextzi = fstar_tensor(3,1)*xi&
+        + fstar_tensor(3,2)*yi&
+        + fstar_tensor(3,3)*zi
     endif
 
-    ! write(*,*) 'f2 = ', i, fextxi, fextyi, fextzi
+    ! if(d1 <= 0.2) then
+      ! write(*,*) 'f2 = ', i, fextxi, fextyi, fextzi
+    ! endif
 
   end subroutine get_gw_force_i
 !---------------------------------------------------------------
@@ -417,9 +431,9 @@ contains
 
     integer                       :: i
     real                          :: inertia(3,3)
-#ifdef LAPACK
-    real                          :: inertia2(3,3)
-#endif
+! #ifdef LAPACK
+    ! real                          :: inertia2(3,3)
+! #endif
     real                          :: x,y,z,r2,rmax2
 
     inertia   = 0.
@@ -451,9 +465,9 @@ contains
     !--Multiply in constant
     inertia      = inertia*particlemass
     !
-#ifdef LAPACK
-    inertia2 = inertia
-#endif
+! #ifdef LAPACK
+    ! inertia2 = inertia
+! #endif
     !
     !--Find the eigenvectors
     !
@@ -477,16 +491,16 @@ contains
     ! call eigensystem(inertia2,3,principle)
     ! evectors = inertia2
 
-    write(*,*) 'Eigenvalues LAPACK:'
-    do i = 1, 3
-      write(*,*) i, principle(i)
-    enddo
-    write(*,*)
-    write(*,*) 'Eigenvectors LAPACK:'
-    do i = 1, 3
-      write(*,*) i, evectors(:,i)
-    enddo
-    write(*,*)
+    ! write(*,*) 'Eigenvalues LAPACK:'
+    ! do i = 1, 3
+    !   write(*,*) i, principle(i)
+    ! enddo
+    ! write(*,*)
+    ! write(*,*) 'Eigenvectors LAPACK:'
+    ! do i = 1, 3
+    !   write(*,*) i, evectors(:,i)
+    ! enddo
+    ! write(*,*)
 #endif
     !
   end subroutine get_momentofinertia
@@ -689,7 +703,7 @@ contains
 
   end function calculate_omega
 !-----------------------------------------------------------------------
-! Calculate the fifth time derivative of the quadrupole moments
+! Calculate the fifth time derivative of the quadrupole moment
 !-----------------------------------------------------------------------
   subroutine dquadrupole5(npart,xyzh,omega,particlemass,d5q)
 
@@ -737,12 +751,12 @@ contains
 !-----------------------------------------------------------------------
 ! Returns the Levi-Civita-Symbol (permutation symbol)
 !-----------------------------------------------------------------------
-  pure function levicivita (idmi,idmj,idmk) result(lc)
+  pure function levicivita(i,j,k) result(lc)
 
-    integer, intent(in)           :: idmi, idmj, idmk
+    integer, intent(in)           :: i, j, k
     real(8)                       :: lc
 
-    lc = 0.5d0 * (idmi - idmj) * (idmj - idmk) * (idmk - idmi)
+    lc = 0.5d0 * (i - j) * (j - k) * (k - i)
 
   end function levicivita
 !-----------------------------------------------------------------------

@@ -1084,7 +1084,7 @@ ifeq ($(SETUP), stripping)
     ISOTHERMAL    = yes
     MODFILE       = moddump_binarystar.f90
     KNOWN_SETUP   = yes
-    # LAPACK      = yes
+    # LAPACK        = yes
     SRCPOT        = ${SRCPOTS:extern_gwinspiral.f90=extern_gwinspiral_stripping.f90}
 endif
 

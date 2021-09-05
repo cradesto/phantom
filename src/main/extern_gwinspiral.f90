@@ -32,6 +32,10 @@ module extern_gwinspiral
  real,    private :: fstar1_coef,fstar2_coef
  real,    private :: com(3),comstar1(3),comstar2(3),vcomstar1(3),vcomstar2(3),fstar1(3),fstar2(3)
  logical, private :: isseparate = .true.
+ ! for compatability with extern_gwinspiral_stripping
+ real, save, public :: evector_old(3)
+ real, save, public :: omega_old(3)
+ real, save, public :: time_old
  !
  ! subroutines
  !

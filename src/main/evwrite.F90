@@ -10,7 +10,7 @@ module evwrite
 !  Also writes log output
 !  To Developer: To add values to the .ev file, follow the following procedure.
 !     In the init_evfile subroutine in evwrite.F90, add the following command:
-!        call fill_ev_label(ev_fmt,ev_tag_int,ev_tag_char,action,i,j)
+!        call fill_ev_tag(ev_fmt,ev_tag_int,ev_tag_char,action,i,j)
 !     and in compute_energies subroutine in energies.F90, add the following command:
 !        call ev_data_update(ev_data_thread,ev_tag_int,value)
 !     where
@@ -43,7 +43,7 @@ module evwrite
  use io,             only:fatal,iverbose
  use options,        only:iexternalforce
  use timestep,       only:dtmax_dratio
- use externalforces, only:iext_binary,was_accreted
+ use externalforces, only:iext_binary,iext_gwinspiral,was_accreted
  use energies,       only:inumev,iquantities,ev_data
  use energies,       only:ndead,npartall
  use energies,       only:gas_only,track_mass,track_lum
@@ -53,6 +53,13 @@ module evwrite
                           iev_B,iev_divB,iev_hdivB,iev_beta,iev_temp,iev_etao,iev_etah,&
                           iev_etaa,iev_vel,iev_vhall,iev_vion,iev_n,&
                           iev_dtg,iev_ts,iev_dm,iev_momall,iev_angall,iev_angall,iev_maccsink,&
+                          ! TODO use tag name
+                          iev_evector,iev_omega,iev_time_old,&
+                          iev_fstar1,iev_fstar2,&
+                          iev_fstar_tensor,&
+                          iev_comstar1,iev_comstar2,&
+                          iev_vcomstar1,iev_vcomstar2,&
+                          iev_fexti1,iev_fexti2,&
                           iev_macc,iev_eacc,iev_totlum,iev_erot,iev_viscrat,iev_erad,iev_gws
 
  implicit none
@@ -170,6 +177,53 @@ subroutine init_evfile(iunit,evfile,open_file)
     if (iexternalforce==iext_binary) then
        call fill_ev_tag(ev_fmt,iev_maccsink(1),'Macc sink 1', '0',i,j)
        call fill_ev_tag(ev_fmt,iev_maccsink(2),'Macc sink 2', '0',i,j)
+    elseif(iexternalforce==iext_gwinspiral) then
+       ! TODO print header
+       call fill_ev_tag(ev_fmt, iev_evector(1), 'v1,1',     '0', i,j)
+       call fill_ev_tag(ev_fmt, iev_evector(2), 'v1,2',     '0', i,j)
+       call fill_ev_tag(ev_fmt, iev_evector(3), 'v1,3',     '0', i,j)
+       call fill_ev_tag(ev_fmt, iev_omega(1),   'xomega',   '0', i,j)
+       call fill_ev_tag(ev_fmt, iev_omega(2),   'yomega',   '0', i,j)
+       call fill_ev_tag(ev_fmt, iev_omega(3),   'zomega',   '0', i,j)
+       call fill_ev_tag(ev_fmt, iev_time_old,   'time_old', '0', i,j)
+
+       call fill_ev_tag(ev_fmt, iev_fstar1(1),  'fstar1,1', '0', i,j)
+       call fill_ev_tag(ev_fmt, iev_fstar1(2),  'fstar1,2', '0', i,j)
+       call fill_ev_tag(ev_fmt, iev_fstar1(3),  'fstar1,3', '0', i,j)
+       call fill_ev_tag(ev_fmt, iev_fstar2(1),  'fstar2,1', '0', i,j)
+       call fill_ev_tag(ev_fmt, iev_fstar2(2),  'fstar2,2', '0', i,j)
+       call fill_ev_tag(ev_fmt, iev_fstar2(3),  'fstar2,3', '0', i,j)
+
+       call fill_ev_tag(ev_fmt, iev_fstar_tensor(1,1), 'ftensor1,1', '0', i,j)
+       call fill_ev_tag(ev_fmt, iev_fstar_tensor(1,2), 'ftensor1,2', '0', i,j)
+       call fill_ev_tag(ev_fmt, iev_fstar_tensor(1,3), 'ftensor1,3', '0', i,j)
+       call fill_ev_tag(ev_fmt, iev_fstar_tensor(2,1), 'ftensor2,1', '0', i,j)
+       call fill_ev_tag(ev_fmt, iev_fstar_tensor(2,2), 'ftensor2,2', '0', i,j)
+       call fill_ev_tag(ev_fmt, iev_fstar_tensor(2,3), 'ftensor2,3', '0', i,j)
+       call fill_ev_tag(ev_fmt, iev_fstar_tensor(3,1), 'ftensor3,1', '0', i,j)
+       call fill_ev_tag(ev_fmt, iev_fstar_tensor(3,2), 'ftensor3,2', '0', i,j)
+       call fill_ev_tag(ev_fmt, iev_fstar_tensor(3,3), 'ftensor3,3', '0', i,j)
+
+       call fill_ev_tag(ev_fmt, iev_comstar1(1),  'comstar1,1',  '0', i,j)
+       call fill_ev_tag(ev_fmt, iev_comstar1(2),  'comstar1,2',  '0', i,j)
+       call fill_ev_tag(ev_fmt, iev_comstar1(3),  'comstar1,3',  '0', i,j)
+       call fill_ev_tag(ev_fmt, iev_comstar2(1),  'comstar2,1',  '0', i,j)
+       call fill_ev_tag(ev_fmt, iev_comstar2(2),  'comstar2,2',  '0', i,j)
+       call fill_ev_tag(ev_fmt, iev_comstar2(3),  'comstar2,3',  '0', i,j)
+
+       call fill_ev_tag(ev_fmt, iev_vcomstar1(1), 'vcomstar1,1', '0', i,j)
+       call fill_ev_tag(ev_fmt, iev_vcomstar1(2), 'vcomstar1,2', '0', i,j)
+       call fill_ev_tag(ev_fmt, iev_vcomstar1(3), 'vcomstar1,3', '0', i,j)
+       call fill_ev_tag(ev_fmt, iev_vcomstar2(1), 'vcomstar2,1', '0', i,j)
+       call fill_ev_tag(ev_fmt, iev_vcomstar2(2), 'vcomstar2,2', '0', i,j)
+       call fill_ev_tag(ev_fmt, iev_vcomstar2(3), 'vcomstar2,3', '0', i,j)
+
+       call fill_ev_tag(ev_fmt, iev_fexti1(1),     'fextxi1',    'xan',i,j)
+       call fill_ev_tag(ev_fmt, iev_fexti1(2),     'fextyi1',    'xan',i,j)
+       call fill_ev_tag(ev_fmt, iev_fexti1(3),     'fextzi1',    'xan',i,j)
+       call fill_ev_tag(ev_fmt, iev_fexti2(1),     'fextxi2',    'xan',i,j)
+       call fill_ev_tag(ev_fmt, iev_fexti2(2),     'fextyi2',    'xan',i,j)
+       call fill_ev_tag(ev_fmt, iev_fexti2(3),     'fextzi2',    'xan',i,j)
     endif
  endif
  if (was_accreted(iexternalforce,-1.0)) then
@@ -201,7 +255,7 @@ subroutine init_evfile(iunit,evfile,open_file)
     call fill_ev_tag(ev_fmt,iev_gws(4),'hpp','0',i,j)
  endif
  iquantities = i - 1 ! The number of different quantities to analyse
- ielements   = j - 1 ! The number of values to be calculated (i.e. the number of columns in .ve)
+ ielements   = j - 1 ! The number of values to be calculated (i.e. the number of columns in .ev)
  !
  !--all threads do above, but only master writes file
  !  (the open_file is to prevent an .ev file from being made during the test suite)

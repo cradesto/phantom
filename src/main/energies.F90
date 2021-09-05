@@ -36,6 +36,13 @@ module energies
                                iev_alpha,iev_B,iev_divB,iev_hdivB,iev_beta,iev_temp,iev_etao,iev_etah(2),&
                                iev_etaa,iev_vel,iev_vhall,iev_vion,iev_n(7),&
                                iev_dtg,iev_ts,iev_dm(maxdusttypes),iev_momall,iev_angall,iev_maccsink(2),&
+                               ! TODO define tag name
+                               iev_evector(3),iev_omega(3),iev_time_old,&
+                               iev_fstar1(3),iev_fstar2(3),&
+                               iev_fstar_tensor(3,3),&
+                               iev_comstar1(3),iev_comstar2(3),&
+                               iev_vcomstar1(3),iev_vcomstar2(3),&
+                               iev_fexti1(3),iev_fexti2(3),&
                                iev_macc,iev_eacc,iev_totlum,iev_erot(4),iev_viscrat,iev_gws(4)
  integer,         public    :: iev_erad
  real,            public    :: erad
@@ -48,7 +55,7 @@ module energies
  public  :: compute_energies,ev_data_update
  private :: get_erot,initialise_ev_data,collate_ev_data,finalise_ev_data
  ! Arrays
- real,             public :: ev_data(4,0:inumev),erot_com(6)
+ real,               public :: ev_data(4,0:inumev),erot_com(6)
 
 contains
 
@@ -73,7 +80,15 @@ subroutine compute_energies(t)
  use gravwaveutils,  only:calculate_strain
  use eos,            only:polyk,utherm,gamma,equationofstate,gamma_pwp
  use io,             only:id,fatal,master
- use externalforces, only:externalforce,externalforce_vdependent,was_accreted,accradius1
+ use externalforces, only:externalforce,externalforce_vdependent,iext_gwinspiral,was_accreted,accradius1
+ ! TODO use value
+ use extern_gwinspiral, only:&
+                         nstar,&
+                         evector_old,omega_old,time_old,&
+                         fstar1,fstar2,&
+                         fstar_tensor,&
+                         comstar1,comstar2,&
+                         vcomstar1,vcomstar2
  use options,        only:iexternalforce,calc_erot,alpha,alphaB,ieos,use_dustfrac
  use mpiutils,       only:reduceall_mpi
  use ptmass,         only:get_accel_sink_gas
@@ -181,6 +196,7 @@ subroutine compute_energies(t)
 !$omp shared(iev_erad,iev_rho,iev_dt,iev_entrop,iev_rhop,iev_alpha) &
 !$omp shared(iev_B,iev_divB,iev_hdivB,iev_beta,iev_temp,iev_etao,iev_etah) &
 !$omp shared(iev_etaa,iev_vel,iev_vhall,iev_vion,iev_n) &
+!$omp shared(nstar,iev_fexti1,iev_fexti2) &
 !$omp shared(iev_dtg,iev_ts,iev_macc,iev_totlum,iev_erot,iev_viscrat) &
 !$omp shared(eos_vars,grainsize,graindens,ndustsmall) &
 #ifdef KROME
@@ -326,6 +342,18 @@ subroutine compute_energies(t)
 #else
           call externalforce(iexternalforce,xi,yi,zi,hi,t,dumx,dumy,dumz,epoti,ii=i)
           call externalforce_vdependent(iexternalforce,xyzh(1:3,i),vxyzu(1:3,i),fdum,epoti)
+          ! TODO eq value
+          if(iexternalforce == iext_gwinspiral) then
+             if(i <= nstar(1)) then
+               call ev_data_update(ev_data_thread,iev_fexti1(1),dumx)
+               call ev_data_update(ev_data_thread,iev_fexti1(2),dumy)
+               call ev_data_update(ev_data_thread,iev_fexti1(3),dumz)
+             else
+               call ev_data_update(ev_data_thread,iev_fexti2(1),dumx)
+               call ev_data_update(ev_data_thread,iev_fexti2(2),dumy)
+               call ev_data_update(ev_data_thread,iev_fexti2(3),dumz)
+             endif
+          endif
 #endif
           epot = epot + pmassi*epoti
        endif
@@ -717,6 +745,44 @@ subroutine compute_energies(t)
     angyall = angy + angaccy
     angzall = angz + angaccz
     ev_data(iev_sum,iev_angall) = sqrt(angxall*angxall + angyall*angyall + angzall*angzall)
+
+    ! TODO eq value
+    if (iexternalforce == iext_gwinspiral) then
+       ev_data(iev_sum,iev_evector(1)) = evector_old(1)
+       ev_data(iev_sum,iev_evector(2)) = evector_old(2)
+       ev_data(iev_sum,iev_evector(3)) = evector_old(3)
+       ev_data(iev_sum,iev_omega(1)) = omega_old(1)
+       ev_data(iev_sum,iev_omega(2)) = omega_old(2)
+       ev_data(iev_sum,iev_omega(3)) = omega_old(3)
+       ev_data(iev_sum,iev_time_old) = time_old
+       ev_data(iev_sum,iev_fstar1(1)) = fstar1(1)
+       ev_data(iev_sum,iev_fstar1(2)) = fstar1(2)
+       ev_data(iev_sum,iev_fstar1(3)) = fstar1(3)
+       ev_data(iev_sum,iev_fstar2(1)) = fstar2(1)
+       ev_data(iev_sum,iev_fstar2(2)) = fstar2(2)
+       ev_data(iev_sum,iev_fstar2(3)) = fstar2(3)
+       ev_data(iev_sum,iev_fstar_tensor(1,1)) = fstar_tensor(1,1)
+       ev_data(iev_sum,iev_fstar_tensor(1,2)) = fstar_tensor(1,2)
+       ev_data(iev_sum,iev_fstar_tensor(1,3)) = fstar_tensor(1,3)
+       ev_data(iev_sum,iev_fstar_tensor(2,1)) = fstar_tensor(2,1)
+       ev_data(iev_sum,iev_fstar_tensor(2,2)) = fstar_tensor(2,2)
+       ev_data(iev_sum,iev_fstar_tensor(2,3)) = fstar_tensor(2,3)
+       ev_data(iev_sum,iev_fstar_tensor(3,1)) = fstar_tensor(3,1)
+       ev_data(iev_sum,iev_fstar_tensor(3,2)) = fstar_tensor(3,2)
+       ev_data(iev_sum,iev_fstar_tensor(3,3)) = fstar_tensor(3,3)
+       ev_data(iev_sum,iev_comstar1(1)) = comstar1(1)
+       ev_data(iev_sum,iev_comstar1(2)) = comstar1(2)
+       ev_data(iev_sum,iev_comstar1(3)) = comstar1(3)
+       ev_data(iev_sum,iev_comstar2(1)) = comstar2(1)
+       ev_data(iev_sum,iev_comstar2(2)) = comstar2(2)
+       ev_data(iev_sum,iev_comstar2(3)) = comstar2(3)
+       ev_data(iev_sum,iev_vcomstar1(1)) = vcomstar1(1)
+       ev_data(iev_sum,iev_vcomstar1(2)) = vcomstar1(2)
+       ev_data(iev_sum,iev_vcomstar1(3)) = vcomstar1(3)
+       ev_data(iev_sum,iev_vcomstar2(1)) = vcomstar2(1)
+       ev_data(iev_sum,iev_vcomstar2(2)) = vcomstar2(2)
+       ev_data(iev_sum,iev_vcomstar2(3)) = vcomstar2(3)
+    endif
  endif
 
  if (track_mass) then

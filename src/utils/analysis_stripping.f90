@@ -209,15 +209,15 @@ contains
         15,'L_tot,1',&
         16,'L_tot,2',&
         17,'L_tot,3',&
-        18,'n L_tot',&
+        18,'L_tot',  &
         19,'L_A,1',  &
         20,'L_A,2',  &
         21,'L_A,3',  &
-        22,'n L_A',  &
+        22,'L_A',    &
         23,'L_B,1',  &
         24,'L_B,2',  &
         25,'L_B,3',  &
-        26,'n L_B'
+        26,'L_B'
     else
       open(iunit,file=fileout,position='append')
     endif
@@ -424,10 +424,10 @@ contains
         13,'v3,1',           &
         14,'v3,2',           &
         15,'v3,3',           &
-        16,'ang v1',         &
-        17,'ang v2',         &
-        18,'ang v3',         &
-        19,'ang v',          &
+        16,'xomega',         &
+        17,'yomega',         &
+        18,'zomega',         &
+        19,'omega',          &
         20,'L1,1',           &
         21,'L1,2',           &
         22,'L1,3',           &

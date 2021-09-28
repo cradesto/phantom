@@ -331,6 +331,13 @@ subroutine evol(infile,logfile,evfile,dumpfile)
     dtprint = min(tprint,tmax) - time + epsilon(dtmax)
     if (dtprint <= epsilon(dtmax) .or. dtprint >= (1.0-1e-8)*dtmax ) dtprint = dtmax + epsilon(dtmax)
     dt = min(dtforce,dtcourant,dterr,dtmax+epsilon(dtmax),dtprint,dtinject,dtrad)
+
+    !TODO: test for the small timesteps
+   !  if(mod(nsteps,5) == 0) then
+   !    dt = dt*0.1
+   !    ! dt = 3.2502692058E-02
+   !    ! dt = 3.2799256219E-01
+   !  endif
 !
 !--write log every step (NB: must print after dt has been set in order to identify timestep constraint)
 !

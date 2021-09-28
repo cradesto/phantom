@@ -178,6 +178,11 @@ subroutine step(npart,nactive,t,dtsph,dtextforce,dtnew)
  ialphaloc = 2
  nvfloorp  = 0
 
+ !TODO: before v
+ write(*,*) 'before v = ', t, dtsph, vxyzu(1,1), fxyzu(1,1)
+ write(*,*) ' v n+1/2 = ', t, dtsph, vxyzu(1,1) + hdtsph*fxyzu(1,1)
+ write(*,*) ' r n+1   = ', t, dtsph, xyzh(1,1) + (vxyzu(1,1) + hdtsph*fxyzu(1,1))*dtsph
+
  !$omp parallel do default(none) &
  !$omp shared(npart,xyzh,vxyzu,fxyzu,iphase,hdtsph,store_itype) &
  !$omp shared(rad,drad,pxyzu)&
@@ -205,6 +210,7 @@ subroutine step(npart,nactive,t,dtsph,dtextforce,dtnew)
        !
        ! predict v and u to the half step with "slow" forces
        !
+      !TODO:
        if (gr) then
           pxyzu(:,i) = pxyzu(:,i) + hdti*fxyzu(:,i)
        else
@@ -254,7 +260,7 @@ subroutine step(npart,nactive,t,dtsph,dtextforce,dtnew)
     call step_extern(npart,ntypes,dtsph,dtextforce,xyzh,vxyzu,fext,fxyzu,t, &
                      nptmass,xyzmh_ptmass,vxyz_ptmass,fxyz_ptmass,nbinmax,ibin_wake)
  else
-    call step_extern_sph(dtsph,npart,xyzh,vxyzu)
+    call step_extern_sph(dtsph,t,npart,xyzh,vxyzu)
  endif
 #endif
  call get_timings(t2,tcpu2)
@@ -1006,13 +1012,31 @@ end subroutine step_extern_gr
 !  forces, sink particles or cooling are used
 !+
 !----------------------------------------------------------------
-subroutine step_extern_sph(dt,npart,xyzh,vxyzu)
+subroutine step_extern_sph(dt,time,npart,xyzh,vxyzu)
  use part, only:isdead_or_accreted,iboundary,iphase,iamtype
+ ! TODO:
+!  use options,        only:iexternalforce
+!  use externalforces, only:update_externalforce
+!  use extern_gwinspiral, only: comstar1
+
  real,    intent(in)    :: dt
+ ! TODO:
+ real,    intent(in)    :: time
+
  integer, intent(in)    :: npart
  real,    intent(inout) :: xyzh(:,:)
  real,    intent(in)    :: vxyzu(:,:)
  integer :: i
+
+ ! TODO:
+!  real, save      :: dmdt = 0.
+!  real            :: timei
+
+!  ! TODO: before t
+!  timei         = timei + dt
+! !  call update_externalforce(iexternalforce,timei,dmdt)
+
+!  write(*,*) 'before t = ', time, dt, xyzh(1,1), vxyzu(1,1), dt*vxyzu(1,1)
 
  !$omp parallel do default(none) &
  !$omp shared(npart,xyzh,vxyzu,dt,iphase) &
@@ -1028,6 +1052,10 @@ subroutine step_extern_sph(dt,npart,xyzh,vxyzu)
     endif
  enddo
  !$omp end parallel do
+ !TODO:
+!  call update_externalforce(iexternalforce,timei,dmdt)
+
+!  write(*,*) 'after  t = ', time, dt, xyzh(1,1), vxyzu(1,1), dt*vxyzu(1,1)
 
 end subroutine step_extern_sph
 

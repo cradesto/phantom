@@ -37,7 +37,7 @@ module energies
                                iev_etaa,iev_vel,iev_vhall,iev_vion,iev_n(7),&
                                iev_dtg,iev_ts,iev_dm(maxdusttypes),iev_momall,iev_angall,iev_maccsink(2),&
                                ! TODO define tag name
-                               iev_evector(3),iev_omega(3),iev_time_old,&
+                               iev_evector(3),iev_time_old,iev_omega(3),&
                                iev_fstar1(3),iev_fstar2(3),&
                                iev_fstar_tensor(3,3),&
                                iev_comstar1(3),iev_comstar2(3),&
@@ -84,7 +84,7 @@ subroutine compute_energies(t)
  ! TODO use value
  use extern_gwinspiral, only:&
                          nstar,&
-                         evector_old,omega_old,time_old,&
+                         evector_old,time_old,omega_old,&
                          fstar1,fstar2,&
                          fstar_tensor,&
                          comstar1,comstar2,&
@@ -751,10 +751,10 @@ subroutine compute_energies(t)
        ev_data(iev_sum,iev_evector(1)) = evector_old(1)
        ev_data(iev_sum,iev_evector(2)) = evector_old(2)
        ev_data(iev_sum,iev_evector(3)) = evector_old(3)
+       ev_data(iev_sum,iev_time_old) = time_old(2)
        ev_data(iev_sum,iev_omega(1)) = omega_old(1)
        ev_data(iev_sum,iev_omega(2)) = omega_old(2)
        ev_data(iev_sum,iev_omega(3)) = omega_old(3)
-       ev_data(iev_sum,iev_time_old) = time_old
        ev_data(iev_sum,iev_fstar1(1)) = fstar1(1)
        ev_data(iev_sum,iev_fstar1(2)) = fstar1(2)
        ev_data(iev_sum,iev_fstar1(3)) = fstar1(3)
@@ -782,6 +782,14 @@ subroutine compute_energies(t)
        ev_data(iev_sum,iev_vcomstar2(1)) = vcomstar2(1)
        ev_data(iev_sum,iev_vcomstar2(2)) = vcomstar2(2)
        ev_data(iev_sum,iev_vcomstar2(3)) = vcomstar2(3)
+
+       ev_data(iev_ave,iev_fexti1(1)) = ev_data(iev_sum,iev_fexti1(1))/nstar(1)
+       ev_data(iev_ave,iev_fexti1(2)) = ev_data(iev_sum,iev_fexti1(2))/nstar(1)
+       ev_data(iev_ave,iev_fexti1(3)) = ev_data(iev_sum,iev_fexti1(3))/nstar(1)
+
+       ev_data(iev_ave,iev_fexti2(1)) = ev_data(iev_sum,iev_fexti2(1))/nstar(2)
+       ev_data(iev_ave,iev_fexti2(2)) = ev_data(iev_sum,iev_fexti2(2))/nstar(2)
+       ev_data(iev_ave,iev_fexti2(3)) = ev_data(iev_sum,iev_fexti2(3))/nstar(2)
     endif
  endif
 

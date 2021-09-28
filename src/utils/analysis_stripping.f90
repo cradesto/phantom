@@ -32,8 +32,8 @@ module analysis
                                 calculate_omega,&
                                 com, vcom,&
                                 evector_old,&
-                                omega_old,&
-                                time_old
+                                time_old,&
+                                omega_old
 
   implicit none
 
@@ -78,8 +78,8 @@ contains
 
     if(firstcall) then
       evector_old = 0.
-      omega_old = 0.
       time_old = 0.
+      omega_old = 0.
     endif
 
     xyzh_ => xyzh
@@ -454,13 +454,13 @@ contains
     ellipticity(2) = sqrt(2.0*(bigI-medI)/medI)
 
     ! Calculate omega
-    omega = calculate_omega(evectors(:, smallIIndex), evector_old, time, time_old, omega_old)
+    omega = calculate_omega(evectors(:, smallIIndex), evector_old, time, time_old(1), omega_old)
     write(*,*) "Omega coords = ", omega
     write(*,*) "Omega norm2 = ", norm2(omega)
 
     evector_old = evectors(:, smallIIndex)
-    omega_old = omega
     time_old = time
+    omega_old = omega
 
     ! NB: only for full dumpfile
     omega_mean = calculate_mean_omega(npart, xyzh, vxyzu)

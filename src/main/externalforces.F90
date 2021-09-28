@@ -574,6 +574,7 @@ subroutine update_externalforce(iexternalforce,ti,dmdt)
     endif
  case(iext_gwinspiral)
     call gw_still_inspiralling(npart,xyzh,vxyzu,nptmass,xyzmh_ptmass,vxyz_ptmass,stopped_now)
+    !TODO:
     call get_gw_force(ti,npart,xyzh,vxyzu,massoftype(igas),nptmass,xyzmh_ptmass,vxyz_ptmass)
     if (stopped_now) call warn('externalforces','Stars have merged. Disabling GW inspiral',2)
  end select

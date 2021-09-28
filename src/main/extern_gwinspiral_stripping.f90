@@ -38,8 +38,8 @@ module extern_gwinspiral
 
   ! save from previous call (of get_gw_force)
   real, save, public :: evector_old(3)
+  real, save, public :: time_old(2)
   real, save, public :: omega_old(3)
-  real, save, public :: time_old
 
   real,       public :: fstar1(3), fstar2(3)
   real,       public :: fstar_tensor(3,3)
@@ -105,8 +105,8 @@ contains
     if(nerr > 0) ierr = 1
 
     evector_old = 0.d0
-    omega_old = 0.d0
     time_old = 0.d0
+    omega_old = 0.d0
     fstar_tensor = 0.d0
 
   end subroutine initialise_gwinspiral
@@ -278,19 +278,21 @@ contains
     if(nstar(1) > 0) then
       ! two stars in stripping scenario
 
-      if(time > time_old) then
+      if(time > time_old(2)) then
 
+        fstar_tensor = 0.0
         ! Calculate the inertia tensor
         call get_momentofinertia(xyzh, npart, m_density_cutoff, particlemass, npartused, principle, evectors, rmax)
 
         smallIIndex = minloc(principle, dim=1)
 
-        omega = calculate_omega(evectors(:, smallIIndex), evector_old, time, time_old, omega_old)
+        omega = calculate_omega(evectors(:, smallIIndex), evector_old, time_old(2), time_old(1), omega_old)
         ! write(*,*) 'time = ', time, 'omega = ', omega
 
         evector_old = evectors(:, smallIIndex)
+        time_old(1) = time_old(2)
+        time_old(2) = time
         omega_old = omega
-        time_old = time
 
         call dquadrupole5(npart, xyzh, omega, particlemass, d5q)
         fstar_tensor = -2.d0/5.d0*d5q/c_code**5
@@ -359,6 +361,7 @@ contains
     ! the new one version of gw drag force
     ! NB: only for two stars in stripping scenario
 
+    ! TODO: turn on new type of the forces
     if(nstar(1) > 0) then
       fextxi = fstar_tensor(1,1)*xi&
         + fstar_tensor(1,2)*yi&

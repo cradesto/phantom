@@ -54,7 +54,7 @@ module evwrite
                           iev_etaa,iev_vel,iev_vhall,iev_vion,iev_n,&
                           iev_dtg,iev_ts,iev_dm,iev_momall,iev_angall,iev_angall,iev_maccsink,&
                           ! TODO use tag name
-                          iev_evector,iev_omega,iev_time_old,&
+                          iev_evector,iev_time_old,iev_omega,&
                           iev_fstar1,iev_fstar2,&
                           iev_fstar_tensor,&
                           iev_comstar1,iev_comstar2,&
@@ -182,10 +182,10 @@ subroutine init_evfile(iunit,evfile,open_file)
        call fill_ev_tag(ev_fmt, iev_evector(1), 'v1,1',     '0', i,j)
        call fill_ev_tag(ev_fmt, iev_evector(2), 'v1,2',     '0', i,j)
        call fill_ev_tag(ev_fmt, iev_evector(3), 'v1,3',     '0', i,j)
+       call fill_ev_tag(ev_fmt, iev_time_old,   'time_old', '0', i,j)
        call fill_ev_tag(ev_fmt, iev_omega(1),   'xomega',   '0', i,j)
        call fill_ev_tag(ev_fmt, iev_omega(2),   'yomega',   '0', i,j)
        call fill_ev_tag(ev_fmt, iev_omega(3),   'zomega',   '0', i,j)
-       call fill_ev_tag(ev_fmt, iev_time_old,   'time_old', '0', i,j)
 
        call fill_ev_tag(ev_fmt, iev_fstar1(1),  'fstar1,1', '0', i,j)
        call fill_ev_tag(ev_fmt, iev_fstar1(2),  'fstar1,2', '0', i,j)

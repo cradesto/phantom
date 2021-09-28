@@ -1808,6 +1808,16 @@ else
     .PHONY: phantom
 endif
 
+ifeq ($(LAPACK), yes)
+phantom: FPPFLAGS += -DLAPACK
+ifneq ($(UNAME), Darwin)
+phantom: LDFLAGS += -L/usr/lib/x86_64-linux-gnu/lapack -llapack \
+                            -L/usr/lib/x86_64-linux-gnu/blas -lblas
+else
+phantom: LDFLAGS += -L/usr/local/opt/lapack/lib -llapack -lblas
+endif
+endif
+
 phantom: checksystem checkparams $(OBJECTS) phantom.o
 	$(FC) $(FFLAGS) -o $(BINDIR)/$@ $(OBJECTS) phantom.o $(LDFLAGS)
 ifeq ($(UNAME), Darwin)

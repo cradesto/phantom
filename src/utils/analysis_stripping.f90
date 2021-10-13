@@ -227,6 +227,7 @@ contains
 
     iA = 1
     iB = 1
+
     do i = 1, npart
       if(dot_product(xyzh(1:3,i), evector_old) >= L1_projection) then
         xyzhA(:,iA) = xyzh(:,i)
@@ -438,8 +439,10 @@ contains
       open(iunit,file=fileout,position='append')
     endif
     !
-    !--Calculate the tensor
-    call get_momentofinertia(xyzh, npart, density_cutoff, particlemass, npartused, principle, evectors, rmax)
+    ! Calculate the inertia tensor with omega
+    call get_momentofinertia(xyzh, vxyzu, npart, density_cutoff, particlemass, npartused, principle, evectors, rmax, omega)
+    write(*,*) "Omega coords 1 = ", omega
+    write(*,*) "Omega norm2 1 = ", norm2(omega)
     !
     !--Sort the principle moments, since ellipticity depends on it.
     smallIIndex = minloc(principle, dim=1)
@@ -453,10 +456,10 @@ contains
     ellipticity(1) = sqrt(2.0*(bigI-smallI)/smallI)
     ellipticity(2) = sqrt(2.0*(bigI-medI)/medI)
 
-    ! Calculate omega
+    ! Another method of the omega calculation
     omega = calculate_omega(evectors(:, smallIIndex), evector_old, time, time_old(1), omega_old)
-    write(*,*) "Omega coords = ", omega
-    write(*,*) "Omega norm2 = ", norm2(omega)
+    write(*,*) "Omega coords 2 = ", omega
+    write(*,*) "Omega norm2 2 = ", norm2(omega)
 
     evector_old = evectors(:, smallIIndex)
     time_old = time
@@ -514,11 +517,18 @@ contains
     integer :: i
 
     l = 0.
+!$omp parallel default(none) &
+!$omp shared(n,xyz,vxyz) &
+!$omp private(i,li) &
+!$omp reduction(+:l)
+!$omp do
     do i = 1,n
       call cross_product3D(xyz(:,i),vxyz(:,i),li)
       li = li/norm2(xyz(:,i))**2
       l = l + li
     enddo
+!$omp enddo
+!$omp end parallel
     l = l/real(n)
 
   end function calculate_mean_omega
@@ -550,7 +560,7 @@ contains
     real                         :: major(3),minor(3)
     !
     !--Skip if not a full dump
-    if(.not.opened_full_dump)return
+    if(.not.opened_full_dump) return
     !
     !--Open file
     fileout = trim(dumpfile(1:index(dumpfile,'_')-1))//'_rotataxesprofile'//trim(dumpfile(index(dumpfile,'_'):))//'.dat'
@@ -605,7 +615,7 @@ contains
 !$omp end parallel
     !
     !--Calculate moment of inertia
-    call get_momentofinertia(xyzh, npart, density_cutoff, particlemass, npartused, principle, evectors, rmax)
+    call get_momentofinertia(xyzh, vxyzu, npart, density_cutoff, particlemass, npartused, principle, evectors, rmax)
     !
     !--Find location of major and minor axes
     zloc = maxloc(evectors(3,:),1)
@@ -771,13 +781,18 @@ contains
 
     point = p*evector_old
 
+!$omp parallel default(none) &
+!$omp shared(npart,xyzh,point) &
+!$omp private(i,dpoint,dr) &
+!$omp reduction(-:potential)
+!$omp do
     do i = 1, npart
-
       dpoint = point - xyzh(1:3,i)
       dr = 1./norm2(dpoint)
       potential = potential - dr
-
     enddo
+!$omp enddo
+!$omp end parallel
 
     potential = potential*particlemass
 
@@ -933,14 +948,11 @@ contains
 ! The implementation is based on the more robust approach described in
 !   V.G. Karmanov Mathematical programming, Moscow: FML, 2008, pp. 134-142.
 !-----------------------------------------------------------------------
-  real function golden_section_search_method(a, b, xyzh, particlemass, npart,&
+  real function golden_section_search_method(a, b,&
     eps, err, extr, maxIter, Nest, iter, func)
 
     real,    intent(in)  :: a, b        ! left and right boundaries
     ! of the extremum search interval
-    integer, intent(in)  :: npart
-    real,    intent(in)  :: xyzh(4,npart)
-    real,    intent(in)  :: particlemass
     real,    intent(in)  :: eps        ! specified accuracy
 
     real,    intent(out) :: err        ! achieved accuracy
@@ -1127,13 +1139,13 @@ contains
     else
 
       ! NB: find correct p1 and p2
-      p1 = -50.
-      p2 = 0.
+      p1 = -10.
+      p2 = 10.
       eps = threshold
 
       write(*,*) 'Golden section search method - Interval of extremum: p1=', p1, ' p2=', p2
-      p = golden_section_search_method(p1, p2, xyzh, particlemass,&
-        npart, eps, err, extr,&
+      p = golden_section_search_method(p1, p2,&
+        eps, err, extr,&
         maxIter, Nest, nIter,&
         roche_potential_wrapper)
 

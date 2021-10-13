@@ -265,8 +265,6 @@ contains
       !
       ! Compute the drag force vectors for each star
       !
-      ! fstar1_coef = -1.d2
-      ! fstar2_coef = -1.d2
       fstar1 = fstar1_coef * vcomstar1 / (vstar1sq*separation**5)
       fstar2 = fstar2_coef * vcomstar2 / (vstar2sq*separation**5)
     endif
@@ -278,25 +276,22 @@ contains
     if(nstar(1) > 0) then
       ! two stars in stripping scenario
 
-      if(time > time_old(2)) then
+      ! if(time > time_old(2)) then
 
-        fstar_tensor = 0.0
-        ! Calculate the inertia tensor
-        call get_momentofinertia(xyzh, npart, m_density_cutoff, particlemass, npartused, principle, evectors, rmax)
+        ! Calculate the inertia tensor with omega
+        call get_momentofinertia(xyzh, vxyzu, npart, m_density_cutoff, particlemass, npartused, principle, evectors, rmax, omega)
 
         smallIIndex = minloc(principle, dim=1)
-
-        omega = calculate_omega(evectors(:, smallIIndex), evector_old, time_old(2), time_old(1), omega_old)
-        ! write(*,*) 'time = ', time, 'omega = ', omega
-
+        call correct_evector(evectors(:, smallIIndex), evector_old, time_old(2), time_old(1), omega_old)
         evector_old = evectors(:, smallIIndex)
+
         time_old(1) = time_old(2)
         time_old(2) = time
         omega_old = omega
 
         call dquadrupole5(npart, xyzh, omega, particlemass, d5q)
         fstar_tensor = -2.d0/5.d0*d5q/c_code**5
-      endif
+      ! endif
 
     endif
 
@@ -314,8 +309,6 @@ contains
     real,    intent(in)    :: xi,yi,zi
     real,    intent(inout) :: fextxi,fextyi,fextzi,phi
 
-    real                   :: d1, d2
-
     fextxi = 0.0
     fextyi = 0.0
     fextzi = 0.0
@@ -323,14 +316,6 @@ contains
     if(i <= 0) then
       return
     endif
-
-    ! d1 = (comstar1(1) - xi)**2.0 + (comstar1(2) - yi)**2.0 + (comstar1(3) - zi)**2.0
-    ! d2 = (comstar2(1) - xi)**2.0 + (comstar2(2) - yi)**2.0 + (comstar2(3) - zi)**2.0
-    ! d1 = sqrt(min(d1, d2))
-
-    ! if(d1 <= 0.2) then
-      ! write(*,*) 'i = ', i, xi, yi, zi, d1
-    ! endif
 
     ! the old version of drag force calculation
 
@@ -362,17 +347,17 @@ contains
     ! NB: only for two stars in stripping scenario
 
     ! TODO: turn on new type of the forces
-    if(nstar(1) > 0) then
-      fextxi = fstar_tensor(1,1)*xi&
-        + fstar_tensor(1,2)*yi&
-        + fstar_tensor(1,3)*zi
-      fextyi = fstar_tensor(2,1)*xi&
-        + fstar_tensor(2,2)*yi&
-        + fstar_tensor(2,3)*zi
-      fextzi = fstar_tensor(3,1)*xi&
-        + fstar_tensor(3,2)*yi&
-        + fstar_tensor(3,3)*zi
-    endif
+    ! if(nstar(1) > 0) then
+    !   fextxi = fstar_tensor(1,1)*xi&
+    !     + fstar_tensor(1,2)*yi&
+    !     + fstar_tensor(1,3)*zi
+    !   fextyi = fstar_tensor(2,1)*xi&
+    !     + fstar_tensor(2,2)*yi&
+    !     + fstar_tensor(2,3)*zi
+    !   fextzi = fstar_tensor(3,1)*xi&
+    !     + fstar_tensor(3,2)*yi&
+    !     + fstar_tensor(3,3)*zi
+    ! endif
 
     ! if(d1 <= 0.2) then
       ! write(*,*) 'f2 = ', i, fextxi, fextyi, fextzi
@@ -421,52 +406,85 @@ contains
 !   L. Landau, and E. Lifshitz. eq. 32.6
 !+
 !-----------------------------------------------------------------------
-  subroutine get_momentofinertia(xyzh,npart,density_cutoff,particlemass,npartused,principle,evectors,rmax)
+  subroutine get_momentofinertia(xyzh,vxyzu,npart,density_cutoff,particlemass,npartused,principle,evectors,rmax,omega)
 
     use part, only: rhoh
+    use vectorutils, only: cross_product3D
 
     integer,          intent(in)  :: npart
     real,             intent(in)  :: xyzh(:,:)
+    real,             intent(in)  :: vxyzu(:,:)
     real,             intent(in)  :: density_cutoff
     real,             intent(in)  :: particlemass
     integer,          intent(out) :: npartused
     real,             intent(out) :: principle(3), evectors(3,3), rmax
+    real,   optional, intent(out) :: omega(3)
 
     integer                       :: i
     real                          :: inertia(3,3)
+    real                          :: dot_inertia(3,3)
+    integer                       :: smallIIndex
+    real                          :: smallI
+    real                          :: smallIEvector(3)
+    real                          :: c(3)
+    real                          :: c1(3)
+    real                          :: dRdt(3)
 ! #ifdef LAPACK
     ! real                          :: inertia2(3,3)
 ! #endif
-    real                          :: x,y,z,r2,rmax2
+    real                          :: x,y,z,vx,vy,vz,r2,rmax2
 
-    inertia   = 0.
-    npartused = 0
-    rmax2     = 0.0
+    inertia     = 0.0
+    dot_inertia = 0.0
+    npartused   = 0
+    rmax2       = 0.0
+    omega       = 0.0
 
+!$omp parallel default(none) &
+!$omp shared(npart,xyzh,vxyzu,particlemass,density_cutoff,com,vcom) &
+!$omp private(i,x,y,z,vx,vy,vz,r2) &
+!$omp reduction(+:inertia,dot_inertia,npartused) &
+!$omp reduction(max:rmax2)
+!$omp do
     do i = 1, npart
       if(rhoh(xyzh(4,i),particlemass) > density_cutoff) then
         x = xyzh(1,i) - com(1)
         y = xyzh(2,i) - com(2)
         z = xyzh(3,i) - com(3)
+        vx = vxyzu(1,i) - vcom(1)
+        vy = vxyzu(2,i) - vcom(2)
+        vz = vxyzu(3,i) - vcom(3)
         inertia(1,1) = inertia(1,1) + y**2 + z**2
         inertia(2,2) = inertia(2,2) + x**2 + z**2
         inertia(3,3) = inertia(3,3) + x**2 + y**2
         inertia(1,2) = inertia(1,2) - x*y
         inertia(1,3) = inertia(1,3) - x*z
         inertia(2,3) = inertia(2,3) - y*z
+        dot_inertia(1,1) = dot_inertia(1,1) + 2.0*y*vy + 2.0*z*vz
+        dot_inertia(2,2) = dot_inertia(2,2) + 2.0*x*vx + 2.0*z*vz
+        dot_inertia(3,3) = dot_inertia(3,3) + 2.0*x*vx + 2.0*y*vy
+        dot_inertia(1,2) = dot_inertia(1,2) - vx*y - x*vy
+        dot_inertia(1,3) = dot_inertia(1,3) - vx*z - x*vz
+        dot_inertia(2,3) = dot_inertia(2,3) - vy*z - y*vz
         ! Additional useful values
         npartused    = npartused + 1
         r2           = x*x + y*y + z*z
         rmax2        = max(rmax2, r2)
       endif
     enddo
+!$omp enddo
+!$omp end parallel
     rmax = sqrt(rmax2)
     !--The symmetric components
     inertia(2,1) = inertia(1,2)
     inertia(3,1) = inertia(1,3)
     inertia(3,2) = inertia(2,3)
+    dot_inertia(2,1) = dot_inertia(1,2)
+    dot_inertia(3,1) = dot_inertia(1,3)
+    dot_inertia(3,2) = dot_inertia(2,3)
     !--Multiply in constant
     inertia      = inertia*particlemass
+    dot_inertia  = dot_inertia*particlemass
     !
 ! #ifdef LAPACK
     ! inertia2 = inertia
@@ -505,6 +523,19 @@ contains
     ! enddo
     ! write(*,*)
 #endif
+    if (present(omega)) then
+      smallIIndex = minloc(principle, dim=1)
+      smallIEvector = evectors(:, smallIIndex)
+      smallI = principle(smallIIndex)
+      c = matmul(dot_inertia, smallIEvector)
+      dRdt = 0.0
+      do i = 1, 3
+        if(i == smallIIndex) cycle
+        c1 = evectors(:, i)
+        dRdt = dRdt + (dot_product(c,c1)*c1)/(principle(i) - smallI)
+      enddo
+      call cross_product3D(dRdt, smallIEvector, omega)
+    endif
     !
   end subroutine get_momentofinertia
 !-----------------------------------------------------------------------
@@ -679,14 +710,41 @@ contains
 
     use vectorutils, only: cross_product3D
 
-    real,             intent(inout) :: evector(3)
-    real,             intent(in)    :: evector_prev(3)
-    real,             intent(in)    :: time
-    real,             intent(in)    :: time_prev
-    real,             intent(in)    :: omega_prev(3)
+    real, intent(inout) :: evector(3)
+    real, intent(in)    :: evector_prev(3)
+    real, intent(in)    :: time
+    real, intent(in)    :: time_prev
+    real, intent(in)    :: omega_prev(3)
 
-    real                            :: omega(3)
-    real                            :: dRdt(3)
+    real                :: omega(3)
+    real                :: dRdt(3)
+
+    ! Calculate omega
+    dRdt = 0.
+    omega = 0.
+
+    if(time > time_prev) then
+      ! NB: change sign of evector if need it
+      call correct_evector(evector,evector_prev,time,time_prev,omega_prev)
+      dRdt = (evector - evector_prev)/(time - time_prev)
+      call cross_product3D(evector,dRdt,omega)
+      omega = omega/(norm2(evector)**2)
+    endif
+
+  end function calculate_omega
+!-----------------------------------------------------------------------
+  subroutine correct_evector(evector,evector_prev,time,time_prev,omega_prev)
+
+    use vectorutils, only: cross_product3D
+
+    real, intent(inout) :: evector(3)
+    real, intent(in)    :: evector_prev(3)
+    real, intent(in)    :: time
+    real, intent(in)    :: time_prev
+    real, intent(in)    :: omega_prev(3)
+
+    real                :: omega(3)
+    real                :: dRdt(3)
 
     ! Calculate omega
     dRdt = 0.
@@ -696,35 +754,36 @@ contains
       dRdt = (evector - evector_prev)/(time - time_prev)
       call cross_product3D(evector,dRdt,omega)
       ! NB: change sign of evector if need it
-      if(omega_prev(3)*omega(3) < 0.0) then
+      if(omega_prev(3)*omega(3) < 0.0)&
         evector = -1.*evector
-        dRdt = (evector - evector_prev)/(time - time_prev)
-        call cross_product3D(evector,dRdt,omega)
-      endif
-      omega = omega/(norm2(evector)**2)
     endif
 
-  end function calculate_omega
+  end subroutine correct_evector
 !-----------------------------------------------------------------------
 ! Calculate the fifth time derivative of the quadrupole moment
 !-----------------------------------------------------------------------
   subroutine dquadrupole5(npart,xyzh,omega,particlemass,d5q)
 
-    integer, intent(in) :: npart
-    real,    intent(in) :: xyzh(:,:)
-    real,    intent(in) :: omega(3)
-    real,    intent(in) :: particlemass
-    real,    intent(out):: d5q(3,3)
+    integer, intent(in)  :: npart
+    real,    intent(in)  :: xyzh(:,:)
+    real,    intent(in)  :: omega(3)
+    real,    intent(in)  :: particlemass
+    real,    intent(out) :: d5q(3,3)
 
-    real                :: omegasq
-    real                :: omegari
-    integer             :: i, ia, ib, ii, ik
-    real                :: coeff(3)
+    real                 :: omegasq
+    real                 :: omegari
+    integer              :: i, ia, ib, ii, ik
+    real                 :: coeff(3)
 
     d5q = 0.d0
 
     omegasq = dot_product(omega, omega)
 
+!$omp parallel default(none) &
+!$omp shared(npart,xyzh,omega,omegasq) &
+!$omp private(i,omegari,ii,ia,ib,coeff,ik) &
+!$omp reduction(+:d5q)
+!$omp do
     do i = 1, npart
       omegari = dot_product(omega, xyzh(1:3,i))
 
@@ -747,6 +806,8 @@ contains
         enddo
       enddo
     enddo
+!$omp enddo
+!$omp end parallel
 
     d5q = d5q*omegasq*particlemass
 

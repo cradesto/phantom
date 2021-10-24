@@ -102,7 +102,7 @@ contains
     !--Calculate the moment of inertia tensor
     call calculate_I(dumpfile, xyzh, vxyzu, time, npart, density_cutoff, iunit, particlemass)
 
-    call trace_com(dumpfile, xyzh, vxyzu, time, npart, iunit, particlemass)
+    call trace_com(dumpfile, xyzh, vxyzu, time, npart, density_cutoff, iunit, particlemass)
 
     ! if(firstcall) then
     !   analysis_opt(:) = 'none'
@@ -165,15 +165,17 @@ contains
 ! Trace centre of mass of each star and the system
 !+
 !-----------------------------------------------------------------------
-  subroutine trace_com(dumpfile,xyzh,vxyzu,time,npart,iunit,particlemass)
+  subroutine trace_com(dumpfile,xyzh,vxyzu,time,npart,density_cutoff,iunit,particlemass)
 
     use dim,          only: maxp, maxvxyzu
     use centreofmass, only: get_centreofmass, get_total_angular_momentum
 
     character(len=*), intent(in) :: dumpfile
-    integer,          intent(in) :: npart,iunit
     real,             intent(in) :: xyzh(:,:),vxyzu(:,:)
     real,             intent(in) :: time
+    integer,          intent(in) :: npart
+    real,             intent(in) :: density_cutoff
+    integer,          intent(in) :: iunit
     real,             intent(in) :: particlemass
 
     integer                      :: i, iA, iB
@@ -184,6 +186,11 @@ contains
     real                         :: xyzhB(4,maxp), vxyzuB(maxvxyzu, maxp)
     real                         :: L_A(3), L_B(3), L_tot(3)
 
+    integer                      :: npartused
+    real                         :: rmax, smallI, medI, bigI
+    integer                      :: smallIIndex, middleIIndex, bigIIndex
+    real                         :: principle(3), evectors(3,3), flatteningA, flatteningB
+
     !--Open file (appendif exists)
     fileout = trim(dumpfile(1:index(dumpfile,'_')-1))//'_centres.dat'
 
@@ -191,7 +198,7 @@ contains
 
     if(firstcall .or. .not.iexist) then
       open(iunit,file=fileout,status='replace')
-      write(iunit,"('#',26(1x,'[',i2.2,1x,a11,']',2x))") &
+      write(iunit,"('#',28(1x,'[',i2.2,1x,a11,']',2x))") &
         1, 'time',   &
         2, 'xcom',   &
         3, 'ycom',   &
@@ -217,7 +224,9 @@ contains
         23,'L_B,1',  &
         24,'L_B,2',  &
         25,'L_B,3',  &
-        26,'L_B'
+        26,'L_B',    &
+        27,'f_A',   &
+        28,'f_B'
     else
       open(iunit,file=fileout,position='append')
     endif
@@ -251,7 +260,30 @@ contains
     call get_total_angular_momentum(xyzhB, vxyzuB, npartB, L_B)
     call get_total_angular_momentum(xyzh, vxyzu, npart, L_tot)
 
-    write(iunit,'(26(es18.10,1x))') &
+    call get_momentofinertia(xyzhA, vxyzuA, npartA, density_cutoff, particlemass, npartused, principle, evectors, rmax)
+    smallIIndex = minloc(principle, dim=1)
+    bigIIndex = maxloc(principle, dim=1)
+    middleIIndex = 6 - smallIIndex - bigIIndex
+
+    smallI = principle(smallIIndex)
+    medI   = principle(middleIIndex)
+    bigI   = principle(bigIIndex)
+
+    flatteningA = (bigI-smallI)/bigI
+
+    call get_momentofinertia(xyzhB, vxyzuB, npartB, density_cutoff, particlemass, npartused, principle, evectors, rmax)
+    !--Sort the principle moments, since ellipticity depends on it.
+    smallIIndex = minloc(principle, dim=1)
+    bigIIndex = maxloc(principle, dim=1)
+    middleIIndex = 6 - smallIIndex - bigIIndex
+
+    smallI = principle(smallIIndex)
+    medI   = principle(middleIIndex)
+    bigI   = principle(bigIIndex)
+
+    flatteningB = (bigI-smallI)/bigI
+
+    write(iunit,'(28(es18.10,1x))') &
       time,                         &
       com,                          &
       xposA,                        &
@@ -265,7 +297,9 @@ contains
       L_A,                          &
       norm2(L_A),                   &
       L_B,                          &
-      norm2(L_B)
+      norm2(L_B),                   &
+      flatteningA,                  &
+      flatteningB
 
     close(iunit)
     !

@@ -53,7 +53,7 @@ ifndef EDITOR
   EDITOR= emacs
 endif
 ifndef OPENMP
-  OPENMP= yes
+  OPENMP= no 
 endif
 ifndef SPLASH_DIR
    SPLASH_DIR=${shell if [ -d $$HOME/splash ]; then echo $$HOME/splash; fi}
@@ -1081,7 +1081,8 @@ ifeq ($(SETUP), stripping)
     ANALYSIS      = analysis_stripping.f90
     IND_TIMESTEPS = no
     GRAVITY       = yes
-    ISOTHERMAL    = yes
+    ISOTHERMAL    = no
+    STORE_TEMP    = yes
     MODFILE       = moddump_binarystar.f90
     KNOWN_SETUP   = yes
     # LAPACK        = yes

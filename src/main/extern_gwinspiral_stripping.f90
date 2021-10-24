@@ -200,6 +200,9 @@ contains
 
       fstar1_coef = -32.0/5.0*mstar1*mstar2**3/c_code**5
       fstar2_coef = -32.0/5.0*mstar2*mstar1**3/c_code**5
+      ! TODO:
+      ! fstar1_coef = fstar1_coef*1.0e+5
+      ! fstar2_coef = fstar2_coef*1.0e+5
 
       if(k1+k2 >= n_threshhold) then
         ! The stars have merged!
@@ -283,6 +286,7 @@ contains
 
         smallIIndex = minloc(principle, dim=1)
         call correct_evector(evectors(:, smallIIndex), evector_old, time_old(2), time_old(1), omega_old)
+        ! omega = calculate_omega(evectors(:, smallIIndex), evector_old, time_old(2), time_old(1), omega_old)
         evector_old = evectors(:, smallIIndex)
 
         time_old(1) = time_old(2)
@@ -347,17 +351,17 @@ contains
     ! NB: only for two stars in stripping scenario
 
     ! TODO: turn on new type of the forces
-    ! if(nstar(1) > 0) then
-    !   fextxi = fstar_tensor(1,1)*xi&
-    !     + fstar_tensor(1,2)*yi&
-    !     + fstar_tensor(1,3)*zi
-    !   fextyi = fstar_tensor(2,1)*xi&
-    !     + fstar_tensor(2,2)*yi&
-    !     + fstar_tensor(2,3)*zi
-    !   fextzi = fstar_tensor(3,1)*xi&
-    !     + fstar_tensor(3,2)*yi&
-    !     + fstar_tensor(3,3)*zi
-    ! endif
+    if(nstar(1) > 0) then
+      fextxi = fstar_tensor(1,1)*xi&
+        + fstar_tensor(1,2)*yi&
+        + fstar_tensor(1,3)*zi
+      fextyi = fstar_tensor(2,1)*xi&
+        + fstar_tensor(2,2)*yi&
+        + fstar_tensor(2,3)*zi
+      fextzi = fstar_tensor(3,1)*xi&
+        + fstar_tensor(3,2)*yi&
+        + fstar_tensor(3,3)*zi
+    endif
 
     ! if(d1 <= 0.2) then
       ! write(*,*) 'f2 = ', i, fextxi, fextyi, fextzi
@@ -523,6 +527,7 @@ contains
     ! enddo
     ! write(*,*)
 #endif
+    !
     if (present(omega)) then
       smallIIndex = minloc(principle, dim=1)
       smallIEvector = evectors(:, smallIIndex)

@@ -30,12 +30,18 @@ module extern_gwinspiral
  integer, private :: n_threshhold
  integer, public  :: Nstar(2) = 0  ! give default value in case dump header not read
  real,    private :: fstar1_coef,fstar2_coef
- real,    private :: com(3),comstar1(3),comstar2(3),vcomstar1(3),vcomstar2(3),fstar1(3),fstar2(3)
+ real,    private :: com(3)
  logical, private :: isseparate = .true.
+
+ real,       public :: fstar1(3), fstar2(3)
+ real,       public :: comstar1(3), comstar2(3)
+ real,       public :: vcomstar1(3), vcomstar2(3)
+
  ! for compatability with extern_gwinspiral_stripping
+ real,       public :: fstar_tensor(3,3)
  real, save, public :: evector_old(3)
- real, save, public :: omega_old(3)
  real, save, public :: time_old
+ real, save, public :: omega_old(3)
  !
  ! subroutines
  !

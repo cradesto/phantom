@@ -180,8 +180,9 @@ subroutine modify_dump(npart,npartoftype,massoftype,xyzh,vxyzu)
     call adjust_sep(npart,xyzh,vxyzu,Nstar1,Nstar2,sep,x1com,v1com,x2com,v2com)
 
     angvel = sqrt(1.0 * mtot / sep**3) ! angular velocity
-    vel1   = m1 * sep / mtot * angvel
-    vel2   = m2 * sep / mtot * angvel
+    ! TODO: is it correct?
+    vel1   = m2 * sep / mtot * angvel
+    vel2   = m1 * sep / mtot * angvel
 
     ! find new com's
     call get_centreofmass(x1com, v1com, Nstar1, xyzh(:,1:Nstar1),       vxyzu(:,1:Nstar1))

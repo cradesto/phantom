@@ -442,7 +442,8 @@ contains
     dot_inertia = 0.0
     npartused   = 0
     rmax2       = 0.0
-    omega       = 0.0
+    if (present(omega))&
+      omega       = 0.0
 
 !$omp parallel default(none) &
 !$omp shared(npart,xyzh,vxyzu,particlemass,density_cutoff,com,vcom) &

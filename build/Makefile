@@ -53,7 +53,7 @@ ifndef EDITOR
   EDITOR= emacs
 endif
 ifndef OPENMP
-  OPENMP= no 
+  OPENMP= yes
 endif
 ifndef SPLASH_DIR
    SPLASH_DIR=${shell if [ -d $$HOME/splash ]; then echo $$HOME/splash; fi}

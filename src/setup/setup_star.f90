@@ -256,6 +256,7 @@ subroutine setpart(id,npart,npartoftype,xyzh,massoftype,vxyzu,polyk,gamma,hfact,
  !
  calc_polyk = .true.
  if (ieos==9) call init_eos_9(EOSopt)
+ if (ieos==15) call init_eos(ieos,ierr)
  allocate(r(ng_max),den(ng_max),pres(ng_max),temp(ng_max),en(ng_max),mtab(ng_max))
 
  print "(/,a,/)",' Using '//trim(profile_opt(iprofile))
@@ -480,6 +481,9 @@ subroutine setup_interactive(polyk,gamma,iexist,id,master,ierr)
  select case(ieos)
  case(15) ! Helmholtz
     call prompt('Enter temperature',initialtemp,1.0e3,1.0e11)
+    if (iprofile==ipoly) then
+      call prompt('Enter gamma (adiabatic index)',gamma,1.,7.)
+    endif
  case(9)
     write(*,'(a)') 'EOS options: 1=APR3,2=SLy,3=MS1,4=ENG (from Read et al 2009)'
     call prompt('Enter equation of state type',EOSopt,1,4)
@@ -681,6 +685,7 @@ subroutine write_setupfile(filename,gamma,polyk)
  select case(ieos)
  case(15) ! Helmholtz
     call write_inopt(initialtemp,'initialtemp','initial temperature of the star',iunit)
+    if(iprofile==ipoly) call write_inopt(gamma,'gamma','Adiabatic index',iunit)
  case(9)
     write(iunit,"(/,a)") '# Piecewise Polytrope default options'
     call write_inopt(EOSopt,'EOSopt','EOS: 1=APR3,2=SLy,3=MS1,4=ENG (from Read et al 2009)',iunit)
@@ -792,6 +797,7 @@ subroutine read_setupfile(filename,gamma,polyk,ierr)
  select case(ieos)
  case(15) ! Helmholtz
     call read_inopt(initialtemp,'initialtemp',db,errcount=nerr)
+    if (iprofile==ipoly) call read_inopt(gamma,'gamma',db,errcount=nerr)
  case(9)
     call read_inopt(EOSopt,'EOSopt',db,errcount=nerr)
  case(2)

@@ -44,7 +44,7 @@ module energies
                                iev_comstar1(3),iev_comstar2(3),&
                                iev_vcomstar1(3),iev_vcomstar2(3),&
                                iev_fexti1(3),iev_fexti2(3),&
-                               iev_macc,iev_eacc,iev_totlum,iev_erot(4),iev_viscrat,iev_gws(4)
+                               iev_macc,iev_eacc,iev_totlum,iev_erot(4),iev_viscrat,iev_gws(8)
  integer,         public    :: iev_erad
  real,            public    :: erad
  integer,         parameter :: inumev  = 150  ! maximum number of quantities to be printed in .ev

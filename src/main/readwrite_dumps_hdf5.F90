@@ -725,6 +725,9 @@ subroutine read_any_dump_hdf5(                                                  
                       got_arrays%got_krome_gamma, &
                       got_arrays%got_krome_mu,    &
                       got_arrays%got_krome_T,     &
+                      .false.,                    & ! got_x
+                      .false.,                    & ! got_z
+                      .false.,                    & ! got_mu
                       got_arrays%got_abund,       &
                       got_arrays%got_dustfrac,    &
                       got_arrays%got_sink_data,   &

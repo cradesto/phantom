@@ -244,6 +244,7 @@ contains
     integer             :: npartused
     real                :: rmax
     integer             :: smallIIndex
+    real                :: inertia(3,3)
     real                :: principle(3), evectors(3,3)
     real                :: omega(3)
     real                :: d5q(3,3)
@@ -282,7 +283,8 @@ contains
       ! if(time > time_old(2)) then
 
         ! Calculate the inertia tensor with omega
-        call get_momentofinertia(xyzh, vxyzu, npart, m_density_cutoff, particlemass, npartused, principle, evectors, rmax, omega)
+        call get_momentofinertia(xyzh, vxyzu, com, vcom, npart, m_density_cutoff, particlemass,&
+          npartused, inertia, principle, evectors, rmax, omega)
 
         smallIIndex = minloc(principle, dim=1)
         call correct_evector(evectors(:, smallIIndex), evector_old, time_old(2), time_old(1), omega_old)
@@ -410,22 +412,25 @@ contains
 !   L. Landau, and E. Lifshitz. eq. 32.6
 !+
 !-----------------------------------------------------------------------
-  subroutine get_momentofinertia(xyzh,vxyzu,npart,density_cutoff,particlemass,npartused,principle,evectors,rmax,omega)
+  subroutine get_momentofinertia(xyzh,vxyzu,center_of_mass,vcenter_of_mass,npart,density_cutoff,particlemass,&
+    npartused,inertia,principle,evectors,rmax,omega)
 
     use part, only: rhoh
     use vectorutils, only: cross_product3D
 
-    integer,          intent(in)  :: npart
     real,             intent(in)  :: xyzh(:,:)
     real,             intent(in)  :: vxyzu(:,:)
+    real,             intent(in)  :: center_of_mass(3)
+    real,             intent(in)  :: vcenter_of_mass(3)
+    integer,          intent(in)  :: npart
     real,             intent(in)  :: density_cutoff
     real,             intent(in)  :: particlemass
     integer,          intent(out) :: npartused
+    real,             intent(out) :: inertia(3,3)
     real,             intent(out) :: principle(3), evectors(3,3), rmax
     real,   optional, intent(out) :: omega(3)
 
     integer                       :: i
-    real                          :: inertia(3,3)
     real                          :: dot_inertia(3,3)
     integer                       :: smallIIndex
     real                          :: smallI
@@ -446,19 +451,19 @@ contains
       omega       = 0.0
 
 !$omp parallel default(none) &
-!$omp shared(npart,xyzh,vxyzu,particlemass,density_cutoff,com,vcom) &
+!$omp shared(npart,xyzh,vxyzu,center_of_mass,vcenter_of_mass,particlemass,density_cutoff) &
 !$omp private(i,x,y,z,vx,vy,vz,r2) &
 !$omp reduction(+:inertia,dot_inertia,npartused) &
 !$omp reduction(max:rmax2)
 !$omp do
     do i = 1, npart
       if(rhoh(xyzh(4,i),particlemass) > density_cutoff) then
-        x = xyzh(1,i) - com(1)
-        y = xyzh(2,i) - com(2)
-        z = xyzh(3,i) - com(3)
-        vx = vxyzu(1,i) - vcom(1)
-        vy = vxyzu(2,i) - vcom(2)
-        vz = vxyzu(3,i) - vcom(3)
+        x = xyzh(1,i) - center_of_mass(1)
+        y = xyzh(2,i) - center_of_mass(2)
+        z = xyzh(3,i) - center_of_mass(3)
+        vx = vxyzu(1,i) - vcenter_of_mass(1)
+        vy = vxyzu(2,i) - vcenter_of_mass(2)
+        vz = vxyzu(3,i) - vcenter_of_mass(3)
         inertia(1,1) = inertia(1,1) + y**2 + z**2
         inertia(2,2) = inertia(2,2) + x**2 + z**2
         inertia(3,3) = inertia(3,3) + x**2 + y**2
@@ -530,6 +535,12 @@ contains
 #endif
     !
     if (present(omega)) then
+      ! \[
+      ! \mathbf{\Omega}_i^\mathrm{orb} =
+      !   \sum_{j \neq i}\frac{1}{\lambda_j - \lambda_i}
+      !     \left[\Big((\mathbf{e}_j^T \mathbf{\dot{I}} \mathbf{e}_i)\mathbf{e}_j\Big)
+      !       \times \mathbf{e}_i \right]
+      ! \]
       smallIIndex = minloc(principle, dim=1)
       smallIEvector = evectors(:, smallIIndex)
       smallI = principle(smallIIndex)

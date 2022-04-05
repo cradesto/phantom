@@ -102,6 +102,8 @@ contains
     !--Calculate the moment of inertia tensor
     call calculate_I(dumpfile, xyzh, vxyzu, time, npart, density_cutoff, iunit, particlemass)
 
+    call print_potential(dumpfile, time, iunit)
+
     call trace_com(dumpfile, xyzh, vxyzu, time, npart, density_cutoff, iunit, particlemass)
 
     ! if(firstcall) then
@@ -180,11 +182,12 @@ contains
 
     integer                      :: i, iA, iB
 
-    real(kind=8)                 :: xposA(3), xposB(3), vpos(3), sep
+    real(kind=8)                 :: xposA(3), xposB(3), vposA(3), vposB(3), sep
     integer                      :: npartA, npartB
     real                         :: xyzhA(4,maxp), vxyzuA(maxvxyzu, maxp)
     real                         :: xyzhB(4,maxp), vxyzuB(maxvxyzu, maxp)
-    real                         :: L_A(3), L_B(3), L_tot(3)
+    real                         :: inertiaA(3,3), inertiaB(3,3)
+    real                         :: L_A(3), L_B(3), L_A2(3), L_B2(3), L_tot(3)
 
     integer                      :: npartused
     real                         :: rmax, smallI, medI, bigI
@@ -198,7 +201,7 @@ contains
 
     if(firstcall .or. .not.iexist) then
       open(iunit,file=fileout,status='replace')
-      write(iunit,"('#',28(1x,'[',i2.2,1x,a11,']',2x))") &
+      write(iunit,"('#',36(1x,'[',i2.2,1x,a11,']',2x))") &
         1, 'time',   &
         2, 'xcom',   &
         3, 'ycom',   &
@@ -225,8 +228,16 @@ contains
         24,'L_B,2',  &
         25,'L_B,3',  &
         26,'L_B',    &
-        27,'f_A',   &
-        28,'f_B'
+        27,'L_A2,1', &
+        28,'L_A2,2', &
+        29,'L_A2,3', &
+        30,'L_A2',   &
+        31,'L_B2,1', &
+        32,'L_B2,2', &
+        33,'L_B2,3', &
+        34,'L_B2',   &
+        35,'f_A',   &
+        36,'f_B'
     else
       open(iunit,file=fileout,position='append')
     endif
@@ -252,15 +263,12 @@ contains
     npartA = iA - 1
     npartB = iB - 1
 
-    call get_centreofmass(xposA, vpos, npartA, xyzhA, vxyzuA)
-    call get_centreofmass(xposB, vpos, npartB, xyzhB, vxyzuB)
+    call get_centreofmass(xposA, vposA, npartA, xyzhA, vxyzuA)
+    call get_centreofmass(xposB, vposB, npartB, xyzhB, vxyzuB)
     sep = sqrt(dot_product(xposA - xposB, xposA - xposB))
 
-    call get_total_angular_momentum(xyzhA, vxyzuA, npartA, L_A)
-    call get_total_angular_momentum(xyzhB, vxyzuB, npartB, L_B)
-    call get_total_angular_momentum(xyzh, vxyzu, npart, L_tot)
-
-    call get_momentofinertia(xyzhA, vxyzuA, npartA, density_cutoff, particlemass, npartused, principle, evectors, rmax)
+    call get_momentofinertia(xyzhA, vxyzuA, xposA, vposA, npartA, density_cutoff, particlemass,&
+      npartused, inertiaA, principle, evectors, rmax)
     smallIIndex = minloc(principle, dim=1)
     bigIIndex = maxloc(principle, dim=1)
     middleIIndex = 6 - smallIIndex - bigIIndex
@@ -271,7 +279,10 @@ contains
 
     flatteningA = (bigI-smallI)/bigI
 
-    call get_momentofinertia(xyzhB, vxyzuB, npartB, density_cutoff, particlemass, npartused, principle, evectors, rmax)
+    L_A2 = matmul(inertiaA, omega_old)
+
+    call get_momentofinertia(xyzhB, vxyzuB, xposB, vposB, npartB, density_cutoff, particlemass,&
+      npartused, inertiaB, principle, evectors, rmax)
     !--Sort the principle moments, since ellipticity depends on it.
     smallIIndex = minloc(principle, dim=1)
     bigIIndex = maxloc(principle, dim=1)
@@ -283,7 +294,21 @@ contains
 
     flatteningB = (bigI-smallI)/bigI
 
-    write(iunit,'(28(es18.10,1x))') &
+    L_B2 = matmul(inertiaB, omega_old)
+
+    do i = 1, npartA
+      xyzhA(1:3,i) = xyzhA(1:3,i) - xposA(1:3)
+      vxyzuA(1:3,i) = vxyzuA(1:3,i) - vposA(1:3)
+    enddo
+    do i = 1, npartB
+      xyzhB(1:3,i) = xyzhB(1:3,i) - xposB(1:3)
+      vxyzuB(1:3,i) = vxyzuB(1:3,i) - vposB(1:3)
+    enddo
+    call get_total_angular_momentum(xyzhA, vxyzuA, npartA, L_A)
+    call get_total_angular_momentum(xyzhB, vxyzuB, npartB, L_B)
+    call get_total_angular_momentum(xyzh, vxyzu, npart, L_tot)
+
+    write(iunit,'(36(es18.10,1x))') &
       time,                         &
       com,                          &
       xposA,                        &
@@ -298,6 +323,10 @@ contains
       norm2(L_A),                   &
       L_B,                          &
       norm2(L_B),                   &
+      L_A2,                         &
+      norm2(L_A2),                  &
+      L_B2,                         &
+      norm2(L_B2),                  &
       flatteningA,                  &
       flatteningB
 
@@ -433,6 +462,7 @@ contains
     integer                      :: npartused
     real                         :: rmax, smallI, medI, bigI
     integer                      :: smallIIndex, middleIIndex, bigIIndex
+    real                         :: inertia(3,3)
     real                         :: principle(3), evectors(3,3), ellipticity(2)
     real                         :: omega(3)
     real                         :: omega_mean(3)
@@ -443,7 +473,7 @@ contains
     inquire(file=fileout,exist=iexist)
     if(firstcall .or. .not.iexist) then
       open(iunit,file=fileout,status='replace')
-      write(iunit,"('#',25(1x,'[',i2.2,1x,a11,']',2x))") &
+      write(iunit,"('#',26(1x,'[',i2.2,1x,a11,']',2x))") &
         1, 'time',           &
         2, 'I1',             &
         3, 'I2',             &
@@ -466,15 +496,17 @@ contains
         20,'L1,1',           &
         21,'L1,2',           &
         22,'L1,3',           &
-        23,'excluded parts', &
-        24,'mstar',          &
-        25,'rstar'
+        23,'L1_proj',        &
+        24,'excluded parts', &
+        25,'mstar',          &
+        26,'rstar'
     else
       open(iunit,file=fileout,position='append')
     endif
     !
     ! Calculate the inertia tensor with omega
-    call get_momentofinertia(xyzh, vxyzu, npart, density_cutoff, particlemass, npartused, principle, evectors, rmax, omega)
+    call get_momentofinertia(xyzh, vxyzu, com, vcom, npart, density_cutoff, particlemass,&
+      npartused, inertia, principle, evectors, rmax, omega)
     write(*,*) "Omega coords 1 = ", omega
     write(*,*) "Omega norm2 1 = ", norm2(omega)
     !
@@ -507,7 +539,7 @@ contains
     call L1_point(2, xyzh, particlemass, npart, L1_projection, L1)
 
     !--Write to file
-    write(iunit,'(25(es18.10,1x))') &
+    write(iunit,'(26(es18.10,1x))') &
       time,                         &
       principle(smallIIndex),       &
       principle(middleIIndex),      &
@@ -530,11 +562,53 @@ contains
       L1(1),                        &
       L1(2),                        &
       L1(3),                        &
+      L1_projection,                &
       real(npart-npartused),        &
       npartused*particlemass,       &
       rmax
 
   end subroutine calculate_I
+!-------------------------------------------------------------
+  subroutine print_potential(dumpfile,time,iunit)
+
+    character(len=*), intent(in) :: dumpfile
+    real,             intent(in) :: time
+    integer,          intent(in) :: iunit
+
+    integer, parameter           :: imax = 100
+    real                         :: p, p1, p2
+    real                         :: potential
+    integer                      :: i
+
+    p1 = -25.0
+    p2 = 25.0
+
+    !--Open file (appendif exists)
+    fileout = trim(dumpfile(1:index(dumpfile,'_')-1))//'_potential.dat'
+    inquire(file=fileout,exist=iexist)
+    if(firstcall .or. .not.iexist) then
+      open(iunit,file=fileout,status='replace')
+      ! write(iunit,"('#',(1x,'[',3x,a11,']',2x))", advance="no") 'time'
+      write(iunit,'(es18.10,2x)', advance="no") 0.0
+      do i = 1, imax
+        p = p1 + (i - 1)*(p2 - p1)/(imax - 1)
+        write(iunit,'(es18.10,1x)', advance="no") p
+      enddo
+      write(iunit,'()')
+    else
+      open(iunit,file=fileout,position='append')
+    endif
+
+    !--Write to file
+    write(iunit,'(es18.10,2x)', advance="no") time
+    do i = 1, imax
+      p = p1 + (i - 1)*(p2 - p1)/(imax - 1)
+      call roche_potential_wrapper(p, potential)
+      write(iunit,'(es18.10,1x)', advance="no") potential
+    enddo
+    write(iunit,'()')
+
+  end subroutine print_potential
 !-------------------------------------------------------------
 ! Function to find mean omega vector from a list
 ! of positions and velocities
@@ -590,6 +664,7 @@ contains
     real                         :: alphabinmaj(nbins),alphabinmin(nbins),alphabinavg(nbins)
     real                         :: partdensmaj(nbins),partdensmin(nbins),partdensavg(nbins)
     real                         :: radbin(nbins),vol(nbins)
+    real                         :: inertia(3,3)
     real                         :: principle(3),principlenew(2),evectors(3,3),evectorsnew(3,2)
     real                         :: major(3),minor(3)
     !
@@ -649,7 +724,8 @@ contains
 !$omp end parallel
     !
     !--Calculate moment of inertia
-    call get_momentofinertia(xyzh, vxyzu, npart, density_cutoff, particlemass, npartused, principle, evectors, rmax)
+    call get_momentofinertia(xyzh, vxyzu, com, vcom, npart, density_cutoff, particlemass,&
+      npartused, inertia, principle, evectors, rmax)
     !
     !--Find location of major and minor axes
     zloc = maxloc(evectors(3,:),1)
@@ -1127,8 +1203,8 @@ contains
     real,    intent(out) :: L1(3)
 
     integer              :: nIter
-    integer, parameter   :: maxIter = 10
-    real,    parameter   :: threshold = 1e-6
+    integer, parameter   :: maxIter = 50
+    real,    parameter   :: threshold = 1e-7
 
     ! for Newton's method
     real                 :: p, pNew, residual, f
@@ -1141,13 +1217,15 @@ contains
     L1_proj = 0.
     L1 = 0.
 
-    ! Initial values for residual and number of iteration
-    residual = 1.e10
+    ! Initial values for number of iteration
     nIter = 1
 
     p = 0.
 
     if(method == 1) then
+      ! Initial values for residual
+      residual = 1.e10
+
       ! Keep search iteration until
       ! (a) residual is bigger then a user-defined threshold value, and
       ! (b) iteration number is less than a user-defined maximum iteration number.
@@ -1173,8 +1251,8 @@ contains
     else
 
       ! NB: find correct p1 and p2
-      p1 = -10.
-      p2 = 10.
+      p1 = -25.
+      p2 = 5.
       eps = threshold
 
       write(*,*) 'Golden section search method - Interval of extremum: p1=', p1, ' p2=', p2

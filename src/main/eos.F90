@@ -24,6 +24,7 @@ module eos
 !    15 = Helmholtz free energy eos
 !    16 = Shen eos
 !    20 = Ideal gas + radiation + various forms of recombination energy from HORMONE (Hirai et al., 2020)
+!    21 = Ideal gas + adiabatic/polytropic eos (for neutron star)
 !
 ! :References: None
 !
@@ -104,6 +105,7 @@ subroutine equationofstate(eos_type,ponrhoi,spsoundi,rhoi,xi,yi,zi,tempi,eni,gam
  use eos_helmholtz, only:eos_helmholtz_pres_sound
  use eos_shen,      only:eos_shen_NL3
  use eos_idealplusrad
+ use eos_idealpluspoly
  use eos_gasradrec, only:equationofstate_gasradrec
  use eos_barotropic, only:get_eos_barotropic
  use eos_piecewise,  only:get_eos_piecewise
@@ -331,6 +333,67 @@ subroutine equationofstate(eos_type,ponrhoi,spsoundi,rhoi,xi,yi,zi,tempi,eni,gam
     spsoundi = cgsspsoundi / unit_velocity
     tempi    = temperaturei
     if (present(mu_local)) mu_local = 1./imui
+
+ !case(21)
+
+ !   !
+ !   !--adiabatic/polytropic eos
+ !   !  (polytropic using polyk if energy not stored, adiabatic if utherm stored)
+ !   !
+ !   !   check value of gamma
+ !   if (gammai < tiny(gammai)) call fatal('eos','gamma not set for adiabatic eos',var='gamma',val=gammai)
+
+ !   #ifdef GR
+ !           if (.not. present(eni)) call fatal('eos','GR call to equationofstate requires thermal energy as input!')
+ !           if (eni < 0.) call fatal('eos','utherm < 0',var='u',val=eni)
+ !           if (gammai == 1.) then
+ !               call fatal('eos','GR not compatible with isothermal equation of state, yet...',var='gamma',val=gammai)
+ !           elseif (gammai > 1.0001) then
+ !               pondensi = (gammai-1.)*eni   ! eni is the thermal energy
+ !               enthi = 1. + eni + pondensi    ! enthalpy
+ !               spsoundi = sqrt(gammai*pondensi/enthi)
+ !               ponrhoi = pondensi ! With GR this routine actually outputs pondensi (i.e. pressure on primitive density, not conserved.)
+ !           endif
+ !   #else
+ !           if (present(eni)) then
+ !               if (eni < 0.) then
+ !               !write(iprint,'(a,Es18.4,a,4Es18.4)')'Warning: eos: u = ',eni,' < 0 at {x,y,z,rho} = ',xi,yi,zi,rhoi
+ !               call fatal('eos','utherm < 0',var='u',val=eni)
+ !               endif
+ !               if (use_entropy) then
+ !               ponrhoi = eni*rhoi**(gammai-1.)  ! use this if en is entropy
+ !               elseif (gammai > 1.0001) then
+ !               ponrhoi = (gammai-1.)*eni   ! use this if en is thermal energy
+ !               else
+ !               ponrhoi = 2./3.*eni ! en is thermal energy and gamma = 1
+ !               endif
+ !           else
+ !               ponrhoi = polyk*rhoi**(gammai-1.)
+ !           endif
+ !           spsoundi = sqrt(gammai*ponrhoi)
+ !   #endif
+
+ !   if (present(tempi)) tempi = temperature_coef*mui*ponrhoi
+
+ !   !
+ !   !--ideal gas plus radiation pressure
+ !   !
+ !   if (present(tempi)) then
+ !     temperaturei = tempi
+ !   else
+ !     temperaturei = -1. ! Use gas temperature as initial guess
+ !   endif
+
+ !   cgsrhoi = rhoi * unit_density
+ !   cgseni  = eni * unit_ergg
+ !   call get_idealpluspoly_temp(rhoi,eni,mui,gammai,temperaturei)
+ !   call get_idealplusrad_pres(cgsrhoi,temperaturei,mui,cgspresi)
+ !   call get_idealplusrad_spsoundi(cgsrhoi,cgspresi,cgseni,spsoundi)
+ !   spsoundi = spsoundi / unit_velocity
+ !   presi = cgspresi / unit_pressure
+ !   ponrhoi = presi / rhoi
+ !   if (present(tempi)) tempi = temperaturei
+ !   if (ierr /= 0) call warning('eos_idealplusrad','temperature iteration did not converge')
 
  case default
     spsoundi = 0. ! avoids compiler warnings

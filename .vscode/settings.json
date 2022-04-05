@@ -18,4 +18,5 @@
   "explorerExclude.backup": {},
   "python.pythonPath": "/home/marat/miniconda/envs/plonk/bin/python",
   // "python.pythonPath": "/opt/miniconda3/envs/plonk/bin/python",
+  "editor.detectIndentation": false
 }

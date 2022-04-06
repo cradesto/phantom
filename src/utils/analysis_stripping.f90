@@ -93,18 +93,14 @@ contains
 
     !--Reset centre of mass
     call reset_centreofmass(npart, xyzh, vxyzu)
-
     !--Calculate the centre of mass and velocity of the system
     call get_centreofmass(com, vcom, npart, xyzh, vxyzu)
 
     density_cutoff = density_cutoff_cgs / unit_density
 
-    !--Calculate the moment of inertia tensor
-    call calculate_I(dumpfile, xyzh, vxyzu, time, npart, density_cutoff, iunit, particlemass)
-
+    call analyse_binary_system(dumpfile, xyzh, vxyzu, time, npart, density_cutoff, iunit, particlemass)
     call print_potential(dumpfile, time, iunit)
-
-    call trace_com(dumpfile, xyzh, vxyzu, time, npart, density_cutoff, iunit, particlemass)
+    call analyse_stars(dumpfile, xyzh, vxyzu, time, npart, density_cutoff, iunit, particlemass)
 
     ! if(firstcall) then
     !   analysis_opt(:) = 'none'
@@ -164,10 +160,191 @@ contains
   end subroutine do_analysis
 !-----------------------------------------------------------------------
 !+
-! Trace centre of mass of each star and the system
+!  Determines the moment of inertia tensor, in diagonalised form.
+!  Can exclude particles which are below a specified cut-off density.
+!  Will output the mass and radius of the measured area.
+!  Will output the eigenvalues and eigenvectors of inertia tensor,
+!   L1 point coordinates and total angular momentum
 !+
 !-----------------------------------------------------------------------
-  subroutine trace_com(dumpfile,xyzh,vxyzu,time,npart,density_cutoff,iunit,particlemass)
+  subroutine analyse_binary_system(dumpfile,xyzh,vxyzu,time,npart,density_cutoff,iunit,particlemass)
+
+    use centreofmass, only: get_total_angular_momentum
+
+    character(len=*), intent(in) :: dumpfile
+    real,             intent(in) :: time
+    integer,          intent(in) :: npart
+    real,             intent(in) :: xyzh(:,:), vxyzu(:,:)
+    real,             intent(in) :: density_cutoff
+    integer,          intent(in) :: iunit
+    real,             intent(in) :: particlemass
+
+    integer                      :: npartused
+    real                         :: rmax, smallI, medI, bigI
+    integer                      :: smallIIndex, middleIIndex, bigIIndex
+    real                         :: inertia(3,3)
+    real                         :: principle(3), evectors(3,3), ellipticity(2)
+    real                         :: omega(3)
+    real                         :: omega_mean(3)
+    real                         :: L1(3)
+    real                         :: L_tot(3)
+
+    !--Open file (appendif exists)
+    fileout = trim(dumpfile(1:index(dumpfile,'_')-1))//'_system.dat'
+    inquire(file=fileout,exist=iexist)
+    if(firstcall .or. .not.iexist) then
+      open(iunit,file=fileout,status='replace')
+      write(iunit,"('#',30(1x,'[',i2.2,1x,a11,']',2x))") &
+        1, 'time',           &
+        2, 'I1',             &
+        3, 'I2',             &
+        4, 'I3',             &
+        5, 'e1',             &
+        6, 'e2',             &
+        7, 'v1,1',           &
+        8, 'v1,2',           &
+        9, 'v1,3',           &
+        10,'v2,1',           &
+        11,'v2,2',           &
+        12,'v2,3',           &
+        13,'v3,1',           &
+        14,'v3,2',           &
+        15,'v3,3',           &
+        16,'xomega',         &
+        17,'yomega',         &
+        18,'zomega',         &
+        19,'omega',          &
+        20,'L1,1',           &
+        21,'L1,2',           &
+        22,'L1,3',           &
+        23,'L1_proj',        &
+        24,'L_tot,1',        &
+        25,'L_tot,2',        &
+        26,'L_tot,3',        &
+        27,'L_tot',          &
+        28,'excluded parts', &
+        29,'msystem',        &
+        30,'rsystem'
+    else
+      open(iunit,file=fileout,position='append')
+    endif
+    !
+    ! Calculate the inertia tensor with omega
+    call get_momentofinertia(xyzh, vxyzu, com, vcom, npart, density_cutoff, particlemass,&
+      npartused, inertia, principle, evectors, rmax, omega)
+    write(*,*) "Omega coords 1 = ", omega
+    write(*,*) "Omega norm2 1 = ", norm2(omega)
+    !
+    !--Sort the principle moments, since ellipticity depends on it.
+    smallIIndex = minloc(principle, dim=1)
+    bigIIndex = maxloc(principle, dim=1)
+    middleIIndex = 6 - smallIIndex - bigIIndex
+
+    smallI = principle(smallIIndex)
+    medI   = principle(middleIIndex)
+    bigI   = principle(bigIIndex)
+
+    ellipticity(1) = sqrt(2.0*(bigI-smallI)/smallI)
+    ellipticity(2) = sqrt(2.0*(bigI-medI)/medI)
+
+    ! Another method of the omega calculation
+    omega = calculate_omega(evectors(:, smallIIndex), evector_old, time, time_old(1), omega_old)
+    write(*,*) "Omega coords 2 = ", omega
+    write(*,*) "Omega norm2 2 = ", norm2(omega)
+
+    evector_old = evectors(:, smallIIndex)
+    time_old = time
+    omega_old = omega
+
+    ! NB: only for full dumpfile
+    omega_mean = calculate_mean_omega(npart, xyzh, vxyzu)
+    write(*,*) "Mean Omega coords = ", omega_mean
+    write(*,*) "Mean Omega norm2 = ", norm2(omega_mean)
+
+    call L1_point(2, xyzh, particlemass, npart, L1_projection, L1)
+
+    call get_total_angular_momentum(xyzh, vxyzu, npart, L_tot)
+
+    !--Write to file
+    write(iunit,'(30(es18.10,1x))') &
+      time,                         &
+      principle(smallIIndex),       &
+      principle(middleIIndex),      &
+      principle(bigIIndex),         &
+      ellipticity(1),               &
+      ellipticity(2),               &
+      evectors(1,smallIIndex),      &
+      evectors(2,smallIIndex),      &
+      evectors(3,smallIIndex),      &
+      evectors(1,middleIIndex),     &
+      evectors(2,middleIIndex),     &
+      evectors(3,middleIIndex),     &
+      evectors(1,bigIIndex),        &
+      evectors(2,bigIIndex),        &
+      evectors(3,bigIIndex),        &
+      omega(1),                     &
+      omega(2),                     &
+      omega(3),                     &
+      norm2(omega),                 &
+      L1(1),                        &
+      L1(2),                        &
+      L1(3),                        &
+      L1_projection,                &
+      L_tot,                        &
+      norm2(L_tot),                 &
+      real(npart-npartused),        &
+      npartused*particlemass,       &
+      rmax
+
+  end subroutine analyse_binary_system
+!-------------------------------------------------------------
+  subroutine print_potential(dumpfile,time,iunit)
+
+    character(len=*), intent(in) :: dumpfile
+    real,             intent(in) :: time
+    integer,          intent(in) :: iunit
+
+    integer, parameter           :: imax = 100
+    real                         :: p, p1, p2
+    real                         :: potential
+    integer                      :: i
+
+    p1 = -25.0
+    p2 = 25.0
+
+    !--Open file (appendif exists)
+    fileout = trim(dumpfile(1:index(dumpfile,'_')-1))//'_potential.dat'
+    inquire(file=fileout,exist=iexist)
+    if(firstcall .or. .not.iexist) then
+      open(iunit,file=fileout,status='replace')
+      ! write(iunit,"('#',(1x,'[',3x,a11,']',2x))", advance="no") 'time'
+      write(iunit,'(es18.10,2x)', advance="no") 0.0
+      do i = 1, imax
+        p = p1 + (i - 1)*(p2 - p1)/(imax - 1)
+        write(iunit,'(es18.10,1x)', advance="no") p
+      enddo
+      write(iunit,'()')
+    else
+      open(iunit,file=fileout,position='append')
+    endif
+
+    !--Write to file
+    write(iunit,'(es18.10,2x)', advance="no") time
+    do i = 1, imax
+      p = p1 + (i - 1)*(p2 - p1)/(imax - 1)
+      call roche_potential_wrapper(p, potential)
+      write(iunit,'(es18.10,1x)', advance="no") potential
+    enddo
+    write(iunit,'()')
+
+  end subroutine print_potential
+!-----------------------------------------------------------------------
+!+
+! Trace centre of mass of each star and the system
+! Will output the angular momentum and flattening of each star
+!+
+!-----------------------------------------------------------------------
+  subroutine analyse_stars(dumpfile,xyzh,vxyzu,time,npart,density_cutoff,iunit,particlemass)
 
     use dim,          only: maxp, maxvxyzu
     use centreofmass, only: get_centreofmass, get_total_angular_momentum
@@ -187,21 +364,23 @@ contains
     real                         :: xyzhA(4,maxp), vxyzuA(maxvxyzu, maxp)
     real                         :: xyzhB(4,maxp), vxyzuB(maxvxyzu, maxp)
     real                         :: inertiaA(3,3), inertiaB(3,3)
-    real                         :: L_A(3), L_B(3), L_A2(3), L_B2(3), L_tot(3)
+    real                         :: L_A(3), L_B(3), L_A2(3), L_B2(3)
+    real                         :: flatteningA, flatteningB
+    real                         :: omegaA(3), omegaB(3)
 
     integer                      :: npartused
     real                         :: rmax, smallI, medI, bigI
     integer                      :: smallIIndex, middleIIndex, bigIIndex
-    real                         :: principle(3), evectors(3,3), flatteningA, flatteningB
+    real                         :: principle(3), evectors(3,3)
 
     !--Open file (appendif exists)
-    fileout = trim(dumpfile(1:index(dumpfile,'_')-1))//'_centres.dat'
+    fileout = trim(dumpfile(1:index(dumpfile,'_')-1))//'_stars.dat'
 
     inquire(file=fileout,exist=iexist)
 
     if(firstcall .or. .not.iexist) then
       open(iunit,file=fileout,status='replace')
-      write(iunit,"('#',36(1x,'[',i2.2,1x,a11,']',2x))") &
+      write(iunit,"('#',40(1x,'[',i2.2,1x,a11,']',2x))") &
         1, 'time',   &
         2, 'xcom',   &
         3, 'ycom',   &
@@ -216,28 +395,32 @@ contains
         12,'m_A',    &
         13,'m_B',    &
         14,'dm',     &
-        15,'L_tot,1',&
-        16,'L_tot,2',&
-        17,'L_tot,3',&
-        18,'L_tot',  &
-        19,'L_A,1',  &
-        20,'L_A,2',  &
-        21,'L_A,3',  &
-        22,'L_A',    &
-        23,'L_B,1',  &
-        24,'L_B,2',  &
-        25,'L_B,3',  &
-        26,'L_B',    &
-        27,'L_A2,1', &
-        28,'L_A2,2', &
-        29,'L_A2,3', &
-        30,'L_A2',   &
-        31,'L_B2,1', &
-        32,'L_B2,2', &
-        33,'L_B2,3', &
-        34,'L_B2',   &
-        35,'f_A',   &
-        36,'f_B'
+        15,'L_A,1',  &
+        16,'L_A,2',  &
+        17,'L_A,3',  &
+        18,'L_A',    &
+        19,'L_B,1',  &
+        20,'L_B,2',  &
+        21,'L_B,3',  &
+        22,'L_B',    &
+        23,'L_A2,1', &
+        24,'L_A2,2', &
+        25,'L_A2,3', &
+        26,'L_A2',   &
+        27,'L_B2,1', &
+        28,'L_B2,2', &
+        29,'L_B2,3', &
+        30,'L_B2',   &
+        31,'f_A',    &
+        32,'f_B',    &
+        33,'xomegaA',&
+        34,'yomegaA',&
+        35,'zomegaA',&
+        36,'omegaA', &
+        37,'xomegaB',&
+        38,'yomegaB',&
+        39,'zomegaB',&
+        40,'omegaB'
     else
       open(iunit,file=fileout,position='append')
     endif
@@ -268,7 +451,7 @@ contains
     sep = sqrt(dot_product(xposA - xposB, xposA - xposB))
 
     call get_momentofinertia(xyzhA, vxyzuA, xposA, vposA, npartA, density_cutoff, particlemass,&
-      npartused, inertiaA, principle, evectors, rmax)
+      npartused, inertiaA, principle, evectors, rmax, omegaA)
     smallIIndex = minloc(principle, dim=1)
     bigIIndex = maxloc(principle, dim=1)
     middleIIndex = 6 - smallIIndex - bigIIndex
@@ -282,7 +465,7 @@ contains
     L_A2 = matmul(inertiaA, omega_old)
 
     call get_momentofinertia(xyzhB, vxyzuB, xposB, vposB, npartB, density_cutoff, particlemass,&
-      npartused, inertiaB, principle, evectors, rmax)
+      npartused, inertiaB, principle, evectors, rmax, omegaB)
     !--Sort the principle moments, since ellipticity depends on it.
     smallIIndex = minloc(principle, dim=1)
     bigIIndex = maxloc(principle, dim=1)
@@ -306,9 +489,8 @@ contains
     enddo
     call get_total_angular_momentum(xyzhA, vxyzuA, npartA, L_A)
     call get_total_angular_momentum(xyzhB, vxyzuB, npartB, L_B)
-    call get_total_angular_momentum(xyzh, vxyzu, npart, L_tot)
 
-    write(iunit,'(36(es18.10,1x))') &
+    write(iunit,'(40(es18.10,1x))') &
       time,                         &
       com,                          &
       xposA,                        &
@@ -317,8 +499,6 @@ contains
       npartA*particlemass,          &
       npartB*particlemass,          &
       abs(npartA*particlemass - npartB*particlemass),&
-      L_tot,                        &
-      norm2(L_tot),                 &
       L_A,                          &
       norm2(L_A),                   &
       L_B,                          &
@@ -328,11 +508,50 @@ contains
       L_B2,                         &
       norm2(L_B2),                  &
       flatteningA,                  &
-      flatteningB
+      flatteningB,                  &
+      omegaA(1),                    &
+      omegaA(2),                    &
+      omegaA(3),                    &
+      norm2(omegaA),                &
+      omegaB(1),                    &
+      omegaB(2),                    &
+      omegaB(3),                    &
+      norm2(omegaB)
 
     close(iunit)
     !
-  end subroutine trace_com
+  end subroutine analyse_stars
+!-------------------------------------------------------------
+! Function to find mean omega vector from a list
+! of positions and velocities
+!-------------------------------------------------------------
+  function calculate_mean_omega(n,xyz,vxyz) result(l)
+
+    use vectorutils, only:cross_product3D
+
+    integer, intent(in) :: n
+    real,    intent(in) :: xyz(:,:),vxyz(:,:)
+    real    :: l(3)
+
+    real    :: li(3)
+    integer :: i
+
+    l = 0.
+!$omp parallel default(none) &
+!$omp shared(n,xyz,vxyz) &
+!$omp private(i,li) &
+!$omp reduction(+:l)
+!$omp do
+    do i = 1,n
+      call cross_product3D(xyz(:,i),vxyz(:,i),li)
+      li = li/norm2(xyz(:,i))**2
+      l = l + li
+    enddo
+!$omp enddo
+!$omp end parallel
+    l = l/real(n)
+
+  end function calculate_mean_omega
 !-----------------------------------------------------------------------
 !+
 ! Calculate T/W using brute force
@@ -440,206 +659,6 @@ contains
     write(iunit,'(6(es18.10,1x))') time,erot/abs(grav),erot,grav,npartmeasured*particlemass,sqrt(rmax2)
     !
   end subroutine calculate_TW
-!-----------------------------------------------------------------------
-!+
-!  Determines the moment of inertia tensor, in diagonalised form.
-!  Can exclude particles which are below a specified cut-off density.
-!  Will output the mass and radius of the measured area.
-!  Will output the eigenvalues and eigenvectors of inertia tensor
-!   and L1 point coordinates
-!+
-!-----------------------------------------------------------------------
-  subroutine calculate_I(dumpfile,xyzh,vxyzu,time,npart,density_cutoff,iunit,particlemass)
-
-    character(len=*), intent(in) :: dumpfile
-    real,             intent(in) :: time
-    integer,          intent(in) :: npart
-    real,             intent(in) :: xyzh(:,:), vxyzu(:,:)
-    real,             intent(in) :: density_cutoff
-    integer,          intent(in) :: iunit
-    real,             intent(in) :: particlemass
-
-    integer                      :: npartused
-    real                         :: rmax, smallI, medI, bigI
-    integer                      :: smallIIndex, middleIIndex, bigIIndex
-    real                         :: inertia(3,3)
-    real                         :: principle(3), evectors(3,3), ellipticity(2)
-    real                         :: omega(3)
-    real                         :: omega_mean(3)
-    real                         :: L1(3)
-
-    !--Open file (appendif exists)
-    fileout = trim(dumpfile(1:index(dumpfile,'_')-1))//'_inertia.dat'
-    inquire(file=fileout,exist=iexist)
-    if(firstcall .or. .not.iexist) then
-      open(iunit,file=fileout,status='replace')
-      write(iunit,"('#',26(1x,'[',i2.2,1x,a11,']',2x))") &
-        1, 'time',           &
-        2, 'I1',             &
-        3, 'I2',             &
-        4, 'I3',             &
-        5, 'e1',             &
-        6, 'e2',             &
-        7, 'v1,1',           &
-        8, 'v1,2',           &
-        9, 'v1,3',           &
-        10,'v2,1',           &
-        11,'v2,2',           &
-        12,'v2,3',           &
-        13,'v3,1',           &
-        14,'v3,2',           &
-        15,'v3,3',           &
-        16,'xomega',         &
-        17,'yomega',         &
-        18,'zomega',         &
-        19,'omega',          &
-        20,'L1,1',           &
-        21,'L1,2',           &
-        22,'L1,3',           &
-        23,'L1_proj',        &
-        24,'excluded parts', &
-        25,'mstar',          &
-        26,'rstar'
-    else
-      open(iunit,file=fileout,position='append')
-    endif
-    !
-    ! Calculate the inertia tensor with omega
-    call get_momentofinertia(xyzh, vxyzu, com, vcom, npart, density_cutoff, particlemass,&
-      npartused, inertia, principle, evectors, rmax, omega)
-    write(*,*) "Omega coords 1 = ", omega
-    write(*,*) "Omega norm2 1 = ", norm2(omega)
-    !
-    !--Sort the principle moments, since ellipticity depends on it.
-    smallIIndex = minloc(principle, dim=1)
-    bigIIndex = maxloc(principle, dim=1)
-    middleIIndex = 6 - smallIIndex - bigIIndex
-
-    smallI = principle(smallIIndex)
-    medI   = principle(middleIIndex)
-    bigI   = principle(bigIIndex)
-
-    ellipticity(1) = sqrt(2.0*(bigI-smallI)/smallI)
-    ellipticity(2) = sqrt(2.0*(bigI-medI)/medI)
-
-    ! Another method of the omega calculation
-    omega = calculate_omega(evectors(:, smallIIndex), evector_old, time, time_old(1), omega_old)
-    write(*,*) "Omega coords 2 = ", omega
-    write(*,*) "Omega norm2 2 = ", norm2(omega)
-
-    evector_old = evectors(:, smallIIndex)
-    time_old = time
-    omega_old = omega
-
-    ! NB: only for full dumpfile
-    omega_mean = calculate_mean_omega(npart, xyzh, vxyzu)
-    write(*,*) "Mean Omega coords = ", omega_mean
-    write(*,*) "Mean Omega norm2 = ", norm2(omega_mean)
-
-    call L1_point(2, xyzh, particlemass, npart, L1_projection, L1)
-
-    !--Write to file
-    write(iunit,'(26(es18.10,1x))') &
-      time,                         &
-      principle(smallIIndex),       &
-      principle(middleIIndex),      &
-      principle(bigIIndex),         &
-      ellipticity(1),               &
-      ellipticity(2),               &
-      evectors(1,smallIIndex),      &
-      evectors(2,smallIIndex),      &
-      evectors(3,smallIIndex),      &
-      evectors(1,middleIIndex),     &
-      evectors(2,middleIIndex),     &
-      evectors(3,middleIIndex),     &
-      evectors(1,bigIIndex),        &
-      evectors(2,bigIIndex),        &
-      evectors(3,bigIIndex),        &
-      omega(1),                     &
-      omega(2),                     &
-      omega(3),                     &
-      norm2(omega),                 &
-      L1(1),                        &
-      L1(2),                        &
-      L1(3),                        &
-      L1_projection,                &
-      real(npart-npartused),        &
-      npartused*particlemass,       &
-      rmax
-
-  end subroutine calculate_I
-!-------------------------------------------------------------
-  subroutine print_potential(dumpfile,time,iunit)
-
-    character(len=*), intent(in) :: dumpfile
-    real,             intent(in) :: time
-    integer,          intent(in) :: iunit
-
-    integer, parameter           :: imax = 100
-    real                         :: p, p1, p2
-    real                         :: potential
-    integer                      :: i
-
-    p1 = -25.0
-    p2 = 25.0
-
-    !--Open file (appendif exists)
-    fileout = trim(dumpfile(1:index(dumpfile,'_')-1))//'_potential.dat'
-    inquire(file=fileout,exist=iexist)
-    if(firstcall .or. .not.iexist) then
-      open(iunit,file=fileout,status='replace')
-      ! write(iunit,"('#',(1x,'[',3x,a11,']',2x))", advance="no") 'time'
-      write(iunit,'(es18.10,2x)', advance="no") 0.0
-      do i = 1, imax
-        p = p1 + (i - 1)*(p2 - p1)/(imax - 1)
-        write(iunit,'(es18.10,1x)', advance="no") p
-      enddo
-      write(iunit,'()')
-    else
-      open(iunit,file=fileout,position='append')
-    endif
-
-    !--Write to file
-    write(iunit,'(es18.10,2x)', advance="no") time
-    do i = 1, imax
-      p = p1 + (i - 1)*(p2 - p1)/(imax - 1)
-      call roche_potential_wrapper(p, potential)
-      write(iunit,'(es18.10,1x)', advance="no") potential
-    enddo
-    write(iunit,'()')
-
-  end subroutine print_potential
-!-------------------------------------------------------------
-! Function to find mean omega vector from a list
-! of positions and velocities
-!-------------------------------------------------------------
-  function calculate_mean_omega(n,xyz,vxyz) result(l)
-
-    use vectorutils, only:cross_product3D
-
-    integer, intent(in) :: n
-    real,    intent(in) :: xyz(:,:),vxyz(:,:)
-    real    :: l(3)
-
-    real    :: li(3)
-    integer :: i
-
-    l = 0.
-!$omp parallel default(none) &
-!$omp shared(n,xyz,vxyz) &
-!$omp private(i,li) &
-!$omp reduction(+:l)
-!$omp do
-    do i = 1,n
-      call cross_product3D(xyz(:,i),vxyz(:,i),li)
-      li = li/norm2(xyz(:,i))**2
-      l = l + li
-    enddo
-!$omp enddo
-!$omp end parallel
-    l = l/real(n)
-
-  end function calculate_mean_omega
 !-----------------------------------------------------------------------
 !+
 !  Determines the radial profile of the midplane (of a given thickness)

@@ -30,6 +30,7 @@ module analysis
   use extern_gwinspiral, only: Nstar,&
                                 get_momentofinertia,&
                                 calculate_omega,&
+                                correct_evector,&
                                 com, vcom,&
                                 evector_old,&
                                 time_old,&
@@ -247,6 +248,8 @@ contains
     ellipticity(1) = sqrt(2.0*(bigI-smallI)/smallI)
     ellipticity(2) = sqrt(2.0*(bigI-medI)/medI)
 
+    ! call correct_evector(evectors(:, smallIIndex), evector_old, time, time_old(1), omega_old)
+
     ! Another method of the omega calculation
     omega = calculate_omega(evectors(:, smallIIndex), evector_old, time, time_old(1), omega_old)
     write(*,*) "Omega coords 2 = ", omega
@@ -273,22 +276,12 @@ contains
       principle(bigIIndex),         &
       ellipticity(1),               &
       ellipticity(2),               &
-      evectors(1,smallIIndex),      &
-      evectors(2,smallIIndex),      &
-      evectors(3,smallIIndex),      &
-      evectors(1,middleIIndex),     &
-      evectors(2,middleIIndex),     &
-      evectors(3,middleIIndex),     &
-      evectors(1,bigIIndex),        &
-      evectors(2,bigIIndex),        &
-      evectors(3,bigIIndex),        &
-      omega(1),                     &
-      omega(2),                     &
-      omega(3),                     &
+      evectors(:,smallIIndex),      &
+      evectors(:,middleIIndex),     &
+      evectors(:,bigIIndex),        &
+      omega,                        &
       norm2(omega),                 &
-      L1(1),                        &
-      L1(2),                        &
-      L1(3),                        &
+      L1,                           &
       L1_projection,                &
       L_tot,                        &
       norm2(L_tot),                 &
@@ -348,6 +341,7 @@ contains
 
     use dim,          only: maxp, maxvxyzu
     use centreofmass, only: get_centreofmass, get_total_angular_momentum
+    use vectorutils,  only: matrixinvert3D
 
     character(len=*), intent(in) :: dumpfile
     real,             intent(in) :: xyzh(:,:),vxyzu(:,:)
@@ -364,6 +358,7 @@ contains
     real                         :: xyzhA(4,maxp), vxyzuA(maxvxyzu, maxp)
     real                         :: xyzhB(4,maxp), vxyzuB(maxvxyzu, maxp)
     real                         :: inertiaA(3,3), inertiaB(3,3)
+    real                         :: inertiaInvA(3,3), inertiaInvB(3,3)
     real                         :: L_A(3), L_B(3), L_A2(3), L_B2(3)
     real                         :: flatteningA, flatteningB
     real                         :: omegaA(3), omegaB(3)
@@ -372,6 +367,8 @@ contains
     real                         :: rmax, smallI, medI, bigI
     integer                      :: smallIIndex, middleIIndex, bigIIndex
     real                         :: principle(3), evectors(3,3)
+
+    integer                      :: ierr
 
     !--Open file (appendif exists)
     fileout = trim(dumpfile(1:index(dumpfile,'_')-1))//'_stars.dat'
@@ -462,6 +459,7 @@ contains
 
     flatteningA = (bigI-smallI)/bigI
 
+    ! \mathbf{J}^{'}_\mathrm{ns} = \mathbf{I}_\mathrm{ns}\mathbf{\Omega}^\mathrm{orb}
     L_A2 = matmul(inertiaA, omega_old)
 
     call get_momentofinertia(xyzhB, vxyzuB, xposB, vposB, npartB, density_cutoff, particlemass,&
@@ -477,6 +475,7 @@ contains
 
     flatteningB = (bigI-smallI)/bigI
 
+    ! \mathbf{J}^{'}_\mathrm{ns} = \mathbf{I}_\mathrm{ns}\mathbf{\Omega}^\mathrm{orb}
     L_B2 = matmul(inertiaB, omega_old)
 
     do i = 1, npartA
@@ -489,6 +488,18 @@ contains
     enddo
     call get_total_angular_momentum(xyzhA, vxyzuA, npartA, L_A)
     call get_total_angular_momentum(xyzhB, vxyzuB, npartB, L_B)
+
+    ! Yet anouther method for omega calculation
+    call matrixinvert3D(inertiaA, inertiaInvA, ierr)
+    if (ierr /= 0) then
+      call fatal('analysis','Error: determinant = 0 in matrix inversion')
+    endif
+    call matrixinvert3D(inertiaB, inertiaInvB, ierr)
+    if (ierr /= 0) then
+      call fatal('analysis','Error: determinant = 0 in matrix inversion')
+    endif
+    omegaA = matmul(inertiaInvA, L_A)
+    omegaB = matmul(inertiaInvB, L_B)
 
     write(iunit,'(40(es18.10,1x))') &
       time,                         &
@@ -509,13 +520,9 @@ contains
       norm2(L_B2),                  &
       flatteningA,                  &
       flatteningB,                  &
-      omegaA(1),                    &
-      omegaA(2),                    &
-      omegaA(3),                    &
+      omegaA,                       &
       norm2(omegaA),                &
-      omegaB(1),                    &
-      omegaB(2),                    &
-      omegaB(3),                    &
+      omegaB,                       &
       norm2(omegaB)
 
     close(iunit)

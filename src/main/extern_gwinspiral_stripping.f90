@@ -61,7 +61,7 @@ module extern_gwinspiral
   public :: initialise_gwinspiral, gw_still_inspiralling
   public :: get_gw_force, get_gw_force_i
   ! public :: get_gwinspiral_vdependent_force, update_gwinspiral_leapfrog
-  public :: get_momentofinertia, calculate_omega
+  public :: get_momentofinertia, calculate_omega, correct_evector
   public :: read_options_gwinspiral, write_options_gwinspiral
   public :: read_headeropts_gwinspiral, write_headeropts_gwinspiral
   private
@@ -427,7 +427,8 @@ contains
     real,             intent(in)  :: particlemass
     integer,          intent(out) :: npartused
     real,             intent(out) :: inertia(3,3)
-    real,             intent(out) :: principle(3), evectors(3,3), rmax
+    real,             intent(out) :: principle(3), evectors(3,3)
+    real,             intent(out) :: rmax
     real,   optional, intent(out) :: omega(3)
 
     integer                       :: i

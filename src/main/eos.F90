@@ -42,7 +42,7 @@ module eos
 !   infile_utils, io, mesa_microphysics, part, physcon, units
 !
  implicit none
- integer, parameter, public :: maxeos = 20
+ integer, parameter, public :: maxeos = 21
  real,               public :: polyk, polyk2, gamma
  real,               public :: qfacdisc = 0.75, qfacdisc2 = 0.75
  logical, parameter, public :: use_entropy = .false.
@@ -334,66 +334,17 @@ subroutine equationofstate(eos_type,ponrhoi,spsoundi,rhoi,xi,yi,zi,tempi,eni,gam
     tempi    = temperaturei
     if (present(mu_local)) mu_local = 1./imui
 
- !case(21)
+ case(21)
 
- !   !
- !   !--adiabatic/polytropic eos
- !   !  (polytropic using polyk if energy not stored, adiabatic if utherm stored)
- !   !
- !   !   check value of gamma
- !   if (gammai < tiny(gammai)) call fatal('eos','gamma not set for adiabatic eos',var='gamma',val=gammai)
+    !-- Polytropic + Ideal gas
+    !
+    !   check value of gamma
+    if (gammai < tiny(gammai)) call fatal('eos','gamma not set for polytropic ideal +  eos',var='gamma',val=gammai)
 
- !   #ifdef GR
- !           if (.not. present(eni)) call fatal('eos','GR call to equationofstate requires thermal energy as input!')
- !           if (eni < 0.) call fatal('eos','utherm < 0',var='u',val=eni)
- !           if (gammai == 1.) then
- !               call fatal('eos','GR not compatible with isothermal equation of state, yet...',var='gamma',val=gammai)
- !           elseif (gammai > 1.0001) then
- !               pondensi = (gammai-1.)*eni   ! eni is the thermal energy
- !               enthi = 1. + eni + pondensi    ! enthalpy
- !               spsoundi = sqrt(gammai*pondensi/enthi)
- !               ponrhoi = pondensi ! With GR this routine actually outputs pondensi (i.e. pressure on primitive density, not conserved.)
- !           endif
- !   #else
- !           if (present(eni)) then
- !               if (eni < 0.) then
- !               !write(iprint,'(a,Es18.4,a,4Es18.4)')'Warning: eos: u = ',eni,' < 0 at {x,y,z,rho} = ',xi,yi,zi,rhoi
- !               call fatal('eos','utherm < 0',var='u',val=eni)
- !               endif
- !               if (use_entropy) then
- !               ponrhoi = eni*rhoi**(gammai-1.)  ! use this if en is entropy
- !               elseif (gammai > 1.0001) then
- !               ponrhoi = (gammai-1.)*eni   ! use this if en is thermal energy
- !               else
- !               ponrhoi = 2./3.*eni ! en is thermal energy and gamma = 1
- !               endif
- !           else
- !               ponrhoi = polyk*rhoi**(gammai-1.)
- !           endif
- !           spsoundi = sqrt(gammai*ponrhoi)
- !   #endif
+    call get_idealpluspoly_temp(rhoi,eni,mui,polyk,gammai,tempi)
+    call get_idealpluspoly_press_over_rho(rhoi,eni,polyk,gammai,ponrhoi)
+    call get_idealpluspoly_spsoundi(rhoi,eni,polyk,gammai,spsoundi)
 
- !   if (present(tempi)) tempi = temperature_coef*mui*ponrhoi
-
- !   !
- !   !--ideal gas plus radiation pressure
- !   !
- !   if (present(tempi)) then
- !     temperaturei = tempi
- !   else
- !     temperaturei = -1. ! Use gas temperature as initial guess
- !   endif
-
- !   cgsrhoi = rhoi * unit_density
- !   cgseni  = eni * unit_ergg
- !   call get_idealpluspoly_temp(rhoi,eni,mui,gammai,temperaturei)
- !   call get_idealplusrad_pres(cgsrhoi,temperaturei,mui,cgspresi)
- !   call get_idealplusrad_spsoundi(cgsrhoi,cgspresi,cgseni,spsoundi)
- !   spsoundi = spsoundi / unit_velocity
- !   presi = cgspresi / unit_pressure
- !   ponrhoi = presi / rhoi
- !   if (present(tempi)) tempi = temperaturei
- !   if (ierr /= 0) call warning('eos_idealplusrad','temperature iteration did not converge')
 
  case default
     spsoundi = 0. ! avoids compiler warnings
@@ -660,7 +611,7 @@ end function get_pressure
 
 !-----------------------------------------------------------------------
 !+
-!  query function to return the internal energyfor calculations with a
+!  query function to return the internal energy for calculations with a
 !  local mean molecular weight and local adiabatic index
 !+
 !-----------------------------------------------------------------------
@@ -755,11 +706,13 @@ end subroutine calc_rec_ene
 !  For ieos=2 and 12, mu_local is an input, X & Z are not used
 !  For ieos=10, mu_local is not used
 !  For ieos=20, mu_local is not used but available as an output
+!  For ieos=21, mu_local is an input
 !+
 !-----------------------------------------------------------------------
 subroutine calc_temp_and_ene(eos_type,rho,pres,ene,temp,ierr,guesseint,mu_local,X_local,Z_local)
  use physcon,          only:kb_on_mh
  use eos_idealplusrad, only:get_idealgasplusrad_tempfrompres,get_idealplusrad_enfromtemp
+ use eos_idealpluspoly,only:get_idealpluspoly_temp_from_pres,get_idealpluspoly_en_from_temp
  use eos_mesa,         only:get_eos_eT_from_rhop_mesa
  use eos_gasradrec,    only:calc_uT_from_rhoP_gasradrec
  integer, intent(in)              :: eos_type
@@ -789,6 +742,9 @@ subroutine calc_temp_and_ene(eos_type,rho,pres,ene,temp,ierr,guesseint,mu_local,
  case(20) ! Ideal gas + radiation + recombination (from HORMONE, Hirai et al., 2020)
     call calc_uT_from_rhoP_gasradrec(rho,pres,X,1.-X-Z,temp,ene,mu,ierr)
     if (present(mu_local)) mu_local = mu
+ case(21) ! Polytropic + Ideal gas
+    call get_idealpluspoly_temp_from_pres(pres,rho,mu,polyk,gamma,temp)
+    call get_idealpluspoly_en_from_temp(rho,temp,mu,polyk,gamma,ene)
  case default
     ierr = 1
  end select

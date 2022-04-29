@@ -136,7 +136,6 @@ subroutine calc_rho_and_pres(r,mcore,mh,rho,pres,Xcore,Ycore)
 
 end subroutine calc_rho_and_pres
 
-
 !-----------------------------------------------------------------------
 !+
 !  Calculate a hydrostatic structure for a given entropy

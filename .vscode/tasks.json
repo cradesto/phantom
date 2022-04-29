@@ -32,8 +32,8 @@
       "command": "make",
       "args": [
         "-C",
-        "/home/marat/phys/phantom/phantom_test/test_gw/wd/",
-        "setup"
+        "/home/marat/phys/phantom/phantom_test/",
+        "analysis"
       ],
       "osx": {
         "args": [
@@ -59,7 +59,7 @@
       "command": "make",
       "args": [
         "-C",
-        "/home/marat/phys/phantom/phantom_test/test_gw/wd/",
+        "/home/marat/phys/phantom/phantom_test/",
         "clean"
       ],
       "osx": {

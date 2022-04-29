@@ -32,6 +32,18 @@ module eos_idealpluspoly
 
   private
 
+  interface get_idealpluspoly_press_over_rho
+    module procedure &
+      get_idealpluspoly_press_over_rho_from_eni,&
+      get_idealpluspoly_press_over_rho_from_temp
+  end interface
+
+  interface get_idealpluspoly_spsoundi
+    module procedure &
+      get_idealpluspoly_spsoundi_from_eni,&
+      get_idealpluspoly_spsoundi_from_temp
+  end interface
+
 contains
 !----------------------------------------------------------------
 !  Solve for temperature as a function of (poly+gas) internal energy
@@ -50,19 +62,28 @@ contains
 !  \\
 !  T = \frac{2}{3}(u - u_{\mathrm{poly}})\frac{\mu}{R} unit_{ergg}
 !----------------------------------------------------------------
-  subroutine get_idealpluspoly_temp(rhoi,eni,mu,polyk,gamma,tempi)
+  subroutine get_idealpluspoly_temp(rhoi,eni,polyk,gamma,mu,tempi)
 
     use units,     only: unit_ergg
 
     real, intent(in)  :: rhoi ! [unit_density]
     real, intent(in)  :: eni ! [unit_ergg]
-    real, intent(in)  :: mu, polyk, gamma
+    real, intent(in)  :: polyk, gamma, mu
 
     real, intent(out) :: tempi ! [K]
 
     real              :: u_poly ! [unit_ergg]
 
     u_poly = polyk/(gamma-1.)*rhoi**(gamma-1.)
+    if (eni < u_poly) then
+      tempi = 0.
+      ! write(*,*) 'get_idealpluspoly_temp: T < 0'
+      ! write(*,'(2(a,es13.6))')&
+      !   'eni = ', eni,&
+      !   ',  u_poly = ', u_poly
+      return
+    endif
+
     tempi = (2.0/3.0*(eni - u_poly)*mu/Rg)*unit_ergg
 
   end subroutine get_idealpluspoly_temp
@@ -75,7 +96,7 @@ contains
 !  \tilde \gamma = 5/3
 !  \\
 !  \frac{P}{\rho} = (\gamma - \frac{5}{3}) u_{\mathrm{poly}} + \frac{2}{3} u
-  subroutine get_idealpluspoly_press_over_rho(rhoi,eni,polyk,gamma,ponrhoi)
+  subroutine get_idealpluspoly_press_over_rho_from_eni(rhoi,eni,polyk,gamma,ponrhoi)
 
     real, intent(in)  :: rhoi ! [unit_density]
     real, intent(in)  :: eni ! [unit_ergg]
@@ -88,7 +109,21 @@ contains
     u_poly = polyk/(gamma-1.)*rhoi**(gamma-1.)
     ponrhoi = (gamma-5.0/3.0)*u_poly + 2.0/3.0*eni
 
-  end subroutine get_idealpluspoly_press_over_rho
+  end subroutine get_idealpluspoly_press_over_rho_from_eni
+!----------------------------------------------------------------
+  subroutine get_idealpluspoly_press_over_rho_from_temp(rhoi,polyk,gamma,mu,tempi,ponrhoi)
+
+    use units,     only: unit_ergg
+
+    real, intent(in)  :: rhoi ! [unit_density]
+    real, intent(in)  :: polyk, gamma, mu
+    real, intent(in)  :: tempi ! [K]
+
+    real, intent(out) :: ponrhoi ! [unit_ergg]
+
+    ponrhoi = polyk*rhoi**(gamma-1.) + Rg*tempi/mu/unit_ergg
+
+  end subroutine get_idealpluspoly_press_over_rho_from_temp
 !----------------------------------------------------------------
 ! % Pressure
 ! P = K \rho^{\gamma} + \frac{\rho R T}{\mu}
@@ -123,7 +158,7 @@ contains
 !   \\
 !   = \frac{10}{9} u
 !     + K \rho^{\gamma - 1} \left(\gamma - \frac{10}{9 (\gamma - 1)}\right)
-  subroutine get_idealpluspoly_spsoundi(rhoi,eni,polyk,gamma,spsoundi)
+  subroutine get_idealpluspoly_spsoundi_from_eni(rhoi,eni,polyk,gamma,spsoundi)
 
     real, intent(in)  :: rhoi ! [unit_density]
     real, intent(in)  :: eni ! [unit_ergg]
@@ -131,27 +166,56 @@ contains
 
     real, intent(out) :: spsoundi ! [unit_velocity]
 
-    ! from temperature
-    ! spsoundi = gamma*polyk*(rhoi**(gamma-1.)) + 5.0/3.0*Rg*tempi/mu
     spsoundi = 10.0/9.0*eni + polyk*(rhoi**(gamma-1.))*(gamma - 10.0/(9.0*(gamma - 1.)))
     spsoundi = sqrt(spsoundi)
 
-  end subroutine get_idealpluspoly_spsoundi
+  end subroutine get_idealpluspoly_spsoundi_from_eni
+!----------------------------------------------------------------
+  subroutine get_idealpluspoly_spsoundi_from_temp(rhoi,polyk,gamma,mu,tempi,spsoundi)
+
+    use units,     only: unit_ergg
+
+    real, intent(in)  :: rhoi ! [unit_density]
+    real, intent(in)  :: polyk, gamma, mu
+    real, intent(in)  :: tempi ! [K]
+
+    real, intent(out) :: spsoundi ! [unit_velocity]
+
+    spsoundi = gamma*polyk*rhoi**(gamma-1.) + 5.0/3.0*Rg*tempi/mu/unit_ergg
+    spsoundi = sqrt(spsoundi)
+
+  end subroutine get_idealpluspoly_spsoundi_from_temp
 !----------------------------------------------------------------
 !+
 !  Calculates temperature from pressure and density
 !+
 !----------------------------------------------------------------
-  subroutine get_idealpluspoly_temp_from_pres(presi,rhoi,mu,polyk,gamma,tempi)
+  subroutine get_idealpluspoly_temp_from_pres(presi_cgs,rhoi_cgs,polyk,gamma,mu,tempi)
 
-    real, intent(in)  :: presi ! [unit_pressure]
-    real, intent(in)  :: rhoi ! [unit_density]
-    real, intent(in)  :: mu, polyk, gamma
+    use units,     only: unit_density, unit_pressure
+
+    real, intent(in)  :: presi_cgs ! [g/(cm*s**2)]
+    real, intent(in)  :: rhoi_cgs ! [g/cm**3]
+    real, intent(in)  :: polyk, gamma, mu
 
     real, intent(out) :: tempi ! [K]
 
-    tempi = presi - polyk*rhoi**gamma
-    tempi = mu*tempi/(rhoi*Rg)
+    real              :: rhoi ! [unit_density]
+    real              :: presi_poly_cgs ! [g/(cm*s**2)]
+
+    rhoi = rhoi_cgs/unit_density
+    presi_poly_cgs = (polyk*rhoi**gamma)*unit_pressure
+    if (presi_cgs < presi_poly_cgs) then
+      tempi = 0.
+      write(*,*) 'get_idealpluspoly_temp_from_pres: T < 0'
+      write(*,'(2(a,3x,es13.6))')&
+        'presi_cgs = ', presi_cgs,&
+        ',  presi_poly_cgs = ', presi_poly_cgs
+      return
+    endif
+
+    tempi = presi_cgs - presi_poly_cgs
+    tempi = mu*tempi/(rhoi_cgs*Rg)
 
   end subroutine get_idealpluspoly_temp_from_pres
 !----------------------------------------------------------------
@@ -160,22 +224,25 @@ contains
 !  and temperature
 !+
 !----------------------------------------------------------------
-  subroutine get_idealpluspoly_en_from_temp(rhoi,tempi,mu,polyk,gamma,eni)
+  subroutine get_idealpluspoly_en_from_temp(rhoi_cgs,polyk,gamma,mu,tempi,eni_cgs)
 
-    use units,     only: unit_ergg
+    use units,     only: unit_density, unit_ergg
 
-    real, intent(in)  :: rhoi ! [unit_density]
+    real, intent(in)  :: rhoi_cgs ! [g/cm**3]
+    real, intent(in)  :: polyk, gamma, mu
     real, intent(in)  :: tempi ! [K]
-    real, intent(in)  :: mu, polyk, gamma
 
-    real, intent(out) :: eni ! [unit_ergg]
+    real, intent(out) :: eni_cgs ! [rgg]
 
-    real              :: u_poly ! [unit_ergg]
-    real              :: u_therm ! [unit_ergg]
+    real              :: rhoi ! [unit_density]
 
-    u_poly = polyk/(gamma-1.)*rhoi**(gamma-1.)
-    u_therm = 3.0/2.0*Rg*tempi/mu
-    eni = u_poly + u_therm/unit_ergg
+    real              :: u_poly_cgs ! [erg]
+    real              :: u_therm_cgs ! [erg]
+
+    rhoi = rhoi_cgs/unit_density
+    u_poly_cgs = (polyk/(gamma-1.)*rhoi**(gamma-1.))*unit_ergg
+    u_therm_cgs = 3.0/2.0*Rg*tempi/mu
+    eni_cgs = u_poly_cgs + u_therm_cgs
 
   end subroutine get_idealpluspoly_en_from_temp
 

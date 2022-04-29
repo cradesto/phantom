@@ -52,7 +52,7 @@ module eos
 
  public  :: equationofstate,setpolyk,eosinfo,utherm,en_from_utherm,get_mean_molecular_weight
  public  :: get_TempPresCs,get_spsound,get_temperature,get_pressure
- public  :: eos_is_non_ideal,eos_outputs_mu,eos_outputs_gasP
+ public  :: eos_is_non_ideal,eos_outputs_mu,eos_outputs_gasP,eos_outputs_temp
 #ifdef KROME
  public  :: get_local_u_internal
 #endif
@@ -174,9 +174,15 @@ subroutine equationofstate(eos_type,ponrhoi,spsoundi,rhoi,xi,yi,zi,tempi,eni,gam
           call fatal('eos','utherm < 0',var='u',val=eni)
        endif
        if (use_entropy) then
-          ponrhoi = eni*rhoi**(gammai-1.)  ! use this if en is entropy
+          ponrhoi = eni*rhoi**(gammai-1.) ! use this if en is entropy
        elseif (gammai > 1.0001) then
           ponrhoi = (gammai-1.)*eni   ! use this if en is thermal energy
+          ! if (eni < polyk/(gammai-1.)*rhoi**(gammai-1.)) then
+          !   write(*,*) 'equationofstate: eni < u_poly'
+          !   write(*,'(2(a,es13.6))')&
+          !     'eni = ', eni,&
+          !     ',  u_poly = ', polyk/(gammai-1.)*rhoi**(gammai-1.)
+          ! endif
        else
           ponrhoi = 2./3.*eni ! en is thermal energy and gamma = 1
        endif
@@ -340,9 +346,11 @@ subroutine equationofstate(eos_type,ponrhoi,spsoundi,rhoi,xi,yi,zi,tempi,eni,gam
     !   check value of gamma
     if (gammai < tiny(gammai)) call fatal('eos','gamma not set for polytropic ideal +  eos',var='gamma',val=gammai)
 
-    call get_idealpluspoly_temp(rhoi,eni,mui,polyk,gammai,tempi)
-    call get_idealpluspoly_press_over_rho(rhoi,eni,polyk,gammai,ponrhoi)
-    call get_idealpluspoly_spsoundi(rhoi,eni,polyk,gammai,spsoundi)
+    call get_idealpluspoly_temp(rhoi,eni,polyk,gammai,mui,tempi)
+    ! call get_idealpluspoly_press_over_rho(rhoi,eni,polyk,gammai,ponrhoi)
+    call get_idealpluspoly_press_over_rho(rhoi,polyk,gammai,mui,tempi,ponrhoi)
+    ! call get_idealpluspoly_spsoundi(rhoi,eni,polyk,gammai,spsoundi)
+    call get_idealpluspoly_spsoundi(rhoi,polyk,gammai,mui,tempi,spsoundi)
 
 
  case default
@@ -732,7 +740,7 @@ subroutine calc_temp_and_ene(eos_type,rho,pres,ene,temp,ierr,guesseint,mu_local,
  select case(eos_type)
  case(2) ! Ideal gas
     temp = pres / (rho * kb_on_mh) * mu
-    ene = pres / ( (gamma-1.) * rho)
+    ene = pres / ((gamma-1.) * rho)
  case(12) ! Ideal gas + radiation
     call get_idealgasplusrad_tempfrompres(pres,rho,mu,temp)
     call get_idealplusrad_enfromtemp(rho,temp,mu,gamma,ene)
@@ -742,8 +750,8 @@ subroutine calc_temp_and_ene(eos_type,rho,pres,ene,temp,ierr,guesseint,mu_local,
     call calc_uT_from_rhoP_gasradrec(rho,pres,X,1.-X-Z,temp,ene,mu,ierr)
     if (present(mu_local)) mu_local = mu
  case(21) ! Polytropic + Ideal gas
-    call get_idealpluspoly_temp_from_pres(pres,rho,mu,polyk,gamma,temp)
-    call get_idealpluspoly_en_from_temp(rho,temp,mu,polyk,gamma,ene)
+    call get_idealpluspoly_temp_from_pres(pres,rho,polyk,gamma,mu,temp)
+    call get_idealpluspoly_en_from_temp(rho,polyk,gamma,mu,temp,ene)
  case default
     ierr = 1
  end select
@@ -994,7 +1002,7 @@ logical function eos_outputs_gasP(ieos)
  integer, intent(in) :: ieos
 
  select case(ieos)
- case(8,9,10,15)
+ case(8,9,10,15,21)
     eos_outputs_gasP = .true.
  case default
     eos_outputs_gasP = .false.
@@ -1002,6 +1010,22 @@ logical function eos_outputs_gasP(ieos)
 
 end function eos_outputs_gasP
 
+!-----------------------------------------------------------------------
+!+
+!  Query function to whether to print temperature to ev file
+!+
+!-----------------------------------------------------------------------
+logical function eos_outputs_temp(ieos)
+ integer, intent(in) :: ieos
+
+ select case(ieos)
+ case(2,8,9,10,15,21)
+    eos_outputs_temp = .true.
+ case default
+    eos_outputs_temp = .false.
+ end select
+
+end function eos_outputs_temp
 !-----------------------------------------------------------------------
 !+
 !  prints equation of state info in the run header
@@ -1074,6 +1098,10 @@ subroutine eosinfo(eos_type,iprint)
     else
        write(*,'(1x,a,f10.6,a,f10.6)') 'Using fixed composition X = ',X_in,", Z = ",Z_in
     endif
+  case(21)
+    write(iprint,"(/,a,f10.6,a,f10.6)") ' Ideal gas + adiabatic/polytropic eos (for neutron star)'&
+      'equation of state (evolving UTHERM): P = (gamma-1)*rho*u, gamma = ',&
+      gamma,' gmw = ',gmw
  end select
  write(iprint,*)
 

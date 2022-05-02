@@ -18,7 +18,10 @@ program phantom2hdf5
 !   readwrite_dumps_fortran, readwrite_dumps_hdf5
 !
  use dim,                     only:tagline
- use part,                    only:hfact,dt_in
+ use part,                    only:hfact
+#ifdef IND_TIMESTEPS
+ use part,                    only:dt_in
+#endif
  use io,                      only:set_io_unit_numbers,iprint,idisk1
  use readwrite_dumps_fortran, only:read_dump_fortran,read_smalldump_fortran,write_fulldump_fortran
  use readwrite_dumps_hdf5,    only:read_dump_hdf5,write_dump_hdf5
@@ -69,7 +72,11 @@ program phantom2hdf5
        cycle over_args
     endif
 
+#ifdef IND_TIMESTEPS
     call write_dump_hdf5(time,trim(dumpfile),fulldump=fulldump,dtind=dt_in)
+#else
+    call write_dump_hdf5(time,trim(dumpfile),fulldump=fulldump)
+#endif
 
  enddo over_args
 

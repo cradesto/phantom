@@ -603,7 +603,7 @@ subroutine read_any_dump_hdf5(                                                  
 #ifdef INJECT_PARTICLES
  call allocate_memory(maxp_hard)
 #else
- call allocate_memory(int(min(nprocs,4)*nparttot/nprocs))
+ call allocate_memory(int(min(nprocs,4)*npart/nprocs,kind=8))
 #endif
 
  if (periodic) then

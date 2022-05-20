@@ -76,7 +76,7 @@ subroutine modify_dump(npart,npartoftype,massoftype,xyzh,vxyzu)
     print*, 'Pick option 1 or 2 from above'
     opt = 1
     ! Then create binary
-    call prompt('Choice',opt, 1, 2)
+    call prompt('Choice',opt, 1, 3)
  endif
 
  !

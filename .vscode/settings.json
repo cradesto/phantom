@@ -8,7 +8,7 @@
     "**/Thumbs.db": true,
     "**/*.un~": true,
     "**/*.o": true,
-    "**/*.mod": false,
+    "**/*.mod": true,
     "**/.classpath": true,
     "**/.project": true,
     "**/.settings": true,

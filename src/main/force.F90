@@ -2422,6 +2422,7 @@ subroutine finish_cell_and_store_results(icall,cell,fxyzu,xyzh,vxyzu,poten,dt,dv
  use timestep_sts,   only:use_sts
  use units,          only:unit_ergg,unit_density
  use eos_shen,       only:eos_shen_get_dTdu
+ use eos_idealpluspoly, only:get_idealpluspoly_press_over_rho
 #ifdef LIGHTCURVE
  use part,           only:luminosity
 #endif
@@ -2478,7 +2479,7 @@ subroutine finish_cell_and_store_results(icall,cell,fxyzu,xyzh,vxyzu,poten,dt,dv
  real    :: rhoi,rho1i,rhogasi,hi,hi1,pmassi,tempi
  real    :: Bxyzi(3),curlBi(3),dvdxi(9),straini(6)
  real    :: xi,yi,zi,B2i,f2i,divBsymmi,betai,frac_divB,divBi,vcleani
- real    :: pri,spsoundi,drhodti,divvi,shearvisc,fac,pdv_work
+ real    :: pri,spsoundi,drhodti,divvi,shearvisc,fac,pdv_work,ponrhoi
  real    :: psii,dtau,hdivbbmax
  real    :: eni,dudtnonideal
  real    :: dustfraci(maxdusttypes),dustfracisum
@@ -2741,6 +2742,11 @@ subroutine finish_cell_and_store_results(icall,cell,fxyzu,xyzh,vxyzu,poten,dt,dv
              fac = rhoi/rhogasi
 #ifndef IMPLICIT_COOLING
              pdv_work = pri*rho1i*rho1i*drhodti
+             if(ieos == 21) then
+                ! get onlye thermal part of P/rho
+                call get_idealpluspoly_press_over_rho(eni,ponrhoi)
+                pdv_work = ponrhoi*rho1i*drhodti
+             endif
              !the pdv_work is accounted for in wind_cooling.F90
              if (ipdv_heating > 0) then
                 fxyz4 = fxyz4 + fac*pdv_work
@@ -2754,6 +2760,11 @@ subroutine finish_cell_and_store_results(icall,cell,fxyzu,xyzh,vxyzu,poten,dt,dv
 #ifdef LIGHTCURVE
              if (lightcurve) then
                 pdv_work = pri*rho1i*rho1i*drhodti
+                if(ieos == 21) then
+                  ! get onlye thermal part of P/rho
+                  call get_idealpluspoly_press_over_rho(eni,ponrhoi)
+                  pdv_work = ponrhoi*rho1i*drhodti
+               endif
                 if (pdv_work > tiny(pdv_work)) then ! pdv_work < 0 is possible, and we want to ignore this case
                    dudt_radi = fac*pdv_work + fac*fsum(idudtdissi)
                 else

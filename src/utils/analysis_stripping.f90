@@ -1277,8 +1277,8 @@ contains
     else
 
       ! NB: find correct p1 and p2
-      p1 = -25.
-      p2 = 5.
+      p1 = -3.
+      p2 = 15.
       eps = threshold
 
       write(*,*) 'Golden section search method - Interval of extremum: p1=', p1, ' p2=', p2

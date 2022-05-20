@@ -126,8 +126,8 @@ subroutine equationofstate(eos_type,ponrhoi,spsoundi,rhoi,xi,yi,zi,tempi,eni,gam
  real    :: enthi,pondensi
 ! Check to see if adiabatic equation of state is being used.
  if (eos_type /= 2 .and. eos_type /= 4 .and. eos_type /= 11 .and. eos_type /= 12) &
- call fatal('eos','GR is only compatible with an adiabatic equation of state (ieos=2), for the time being.',&
- var='eos_type',val=real(eos_type))
+  call fatal('eos','GR is only compatible with an adiabatic equation of state (ieos=2), for the time being.',&
+  var='eos_type',val=real(eos_type))
 #endif
 
  gammai = gamma
@@ -346,12 +346,12 @@ subroutine equationofstate(eos_type,ponrhoi,spsoundi,rhoi,xi,yi,zi,tempi,eni,gam
     !   check value of gamma
     if (gammai < tiny(gammai)) call fatal('eos','gamma not set for polytropic ideal +  eos',var='gamma',val=gammai)
 
-    call get_idealpluspoly_temp(rhoi,eni,polyk,gammai,mui,tempi)
-    ! call get_idealpluspoly_press_over_rho(rhoi,eni,polyk,gammai,ponrhoi)
-    call get_idealpluspoly_press_over_rho(rhoi,polyk,gammai,mui,tempi,ponrhoi)
-    ! call get_idealpluspoly_spsoundi(rhoi,eni,polyk,gammai,spsoundi)
-    call get_idealpluspoly_spsoundi(rhoi,polyk,gammai,mui,tempi,spsoundi)
-
+    ! call get_idealpluspoly_temp(rhoi,eni,polyk,gammai,mui,tempi)
+    call get_idealpluspoly_temp(eni,mui,tempi)
+    call get_idealpluspoly_press_over_rho(rhoi,eni,polyk,gammai,ponrhoi)
+    ! call get_idealpluspoly_press_over_rho(rhoi,polyk,gammai,mui,tempi,ponrhoi)
+    call get_idealpluspoly_spsoundi(rhoi,eni,polyk,gammai,spsoundi)
+    ! call get_idealpluspoly_spsoundi(rhoi,polyk,gammai,mui,tempi,spsoundi)
 
  case default
     spsoundi = 0. ! avoids compiler warnings
@@ -751,7 +751,7 @@ subroutine calc_temp_and_ene(eos_type,rho,pres,ene,temp,ierr,guesseint,mu_local,
     if (present(mu_local)) mu_local = mu
  case(21) ! Polytropic + Ideal gas
     call get_idealpluspoly_temp_from_pres(pres,rho,polyk,gamma,mu,temp)
-    call get_idealpluspoly_en_from_temp(rho,polyk,gamma,mu,temp,ene)
+    call get_idealpluspoly_en_from_temp(mu,temp,ene)
  case default
     ierr = 1
  end select

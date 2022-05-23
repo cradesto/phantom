@@ -999,7 +999,6 @@ ifeq ($(SETUP), stripping)
     IND_TIMESTEPS = no
     GRAVITY       = yes
     ISOTHERMAL    = no
-    STORE_TEMP    = yes
     MODFILE       = moddump_binarystar.f90
     KNOWN_SETUP   = yes
     # LAPACK        = yes

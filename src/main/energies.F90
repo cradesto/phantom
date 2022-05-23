@@ -396,6 +396,10 @@ subroutine compute_energies(t)
 #ifdef GR
              ethermi = (alpha_gr/lorentzi)*ethermi
 #endif
+             if (ieos==21) then
+               ethermi = ethermi + pmassi*ponrhoi/(gamma-1.)*gasfrac
+             endif
+
              etherm = etherm + ethermi
 
              if (vxyzu(iu,i) < tiny(vxyzu(iu,i))) np_e_eq_0 = np_e_eq_0 + 1

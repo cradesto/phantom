@@ -2764,7 +2764,7 @@ subroutine finish_cell_and_store_results(icall,cell,fxyzu,xyzh,vxyzu,poten,dt,dv
                   ! get onlye thermal part of P/rho
                   call get_idealpluspoly_press_over_rho(eni,ponrhoi)
                   pdv_work = ponrhoi*rho1i*drhodti
-               endif
+                endif
                 if (pdv_work > tiny(pdv_work)) then ! pdv_work < 0 is possible, and we want to ignore this case
                    dudt_radi = fac*pdv_work + fac*fsum(idudtdissi)
                 else

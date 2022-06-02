@@ -54,13 +54,14 @@ module evwrite
                           iev_B,iev_divB,iev_hdivB,iev_beta,iev_temp,iev_etao,iev_etah,&
                           iev_etaa,iev_vel,iev_vhall,iev_vion,iev_n,&
                           iev_dtg,iev_ts,iev_dm,iev_momall,iev_angall,iev_angall,iev_maccsink,&
-                          ! TODO use tag name
+                          ! NB: use tag name
                           iev_evector,iev_omega,&
                           iev_fstar1,iev_fstar2,&
                           iev_fstar_tensor,&
                           iev_comstar1,iev_comstar2,&
                           iev_vcomstar1,iev_vcomstar2,&
                           iev_fexti1,iev_fexti2,&
+                          iev_fxyz,&
                           iev_macc,iev_eacc,iev_totlum,iev_erot,iev_viscrat,iev_erad,iev_gws
 
  implicit none
@@ -132,6 +133,11 @@ subroutine init_evfile(iunit,evfile,open_file)
  call fill_ev_tag(ev_fmt,iev_com(1), 'xcom',     '0', i,j)
  call fill_ev_tag(ev_fmt,iev_com(2), 'ycom',     '0', i,j)
  call fill_ev_tag(ev_fmt,iev_com(3), 'zcom',     '0', i,j)
+
+ call fill_ev_tag(ev_fmt, iev_fxyz(1), 'fx',     's', i,j)
+ call fill_ev_tag(ev_fmt, iev_fxyz(2), 'fy',     's', i,j)
+ call fill_ev_tag(ev_fmt, iev_fxyz(3), 'fz',     's', i,j)
+
  if (.not. gas_only) then
     if (npartoftypetot(igas)        > 0) call fill_ev_tag(ev_fmt,iev_rhop(1),'rho gas', 'xa',i,j)
     if (npartoftypetot(idust)       > 0) call fill_ev_tag(ev_fmt,iev_rhop(2),'rho dust','xa',i,j)
@@ -189,7 +195,7 @@ subroutine init_evfile(iunit,evfile,open_file)
        call fill_ev_tag(ev_fmt,iev_maccsink(1),'Macc sink 1', '0',i,j)
        call fill_ev_tag(ev_fmt,iev_maccsink(2),'Macc sink 2', '0',i,j)
     elseif(iexternalforce==iext_gwinspiral) then
-       ! TODO print header
+       ! NB: print header
        call fill_ev_tag(ev_fmt, iev_evector(1), 'v1,1',     '0', i,j)
        call fill_ev_tag(ev_fmt, iev_evector(2), 'v1,2',     '0', i,j)
        call fill_ev_tag(ev_fmt, iev_evector(3), 'v1,3',     '0', i,j)
@@ -228,12 +234,12 @@ subroutine init_evfile(iunit,evfile,open_file)
        call fill_ev_tag(ev_fmt, iev_vcomstar2(2), 'vcomstar2,2', '0', i,j)
        call fill_ev_tag(ev_fmt, iev_vcomstar2(3), 'vcomstar2,3', '0', i,j)
 
-       call fill_ev_tag(ev_fmt, iev_fexti1(1),     'fextxi1',    'xan',i,j)
-       call fill_ev_tag(ev_fmt, iev_fexti1(2),     'fextyi1',    'xan',i,j)
-       call fill_ev_tag(ev_fmt, iev_fexti1(3),     'fextzi1',    'xan',i,j)
-       call fill_ev_tag(ev_fmt, iev_fexti2(1),     'fextxi2',    'xan',i,j)
-       call fill_ev_tag(ev_fmt, iev_fexti2(2),     'fextyi2',    'xan',i,j)
-       call fill_ev_tag(ev_fmt, iev_fexti2(3),     'fextzi2',    'xan',i,j)
+       call fill_ev_tag(ev_fmt, iev_fexti1(1),    'fextxi1',    'xan',i,j)
+       call fill_ev_tag(ev_fmt, iev_fexti1(2),    'fextyi1',    'xan',i,j)
+       call fill_ev_tag(ev_fmt, iev_fexti1(3),    'fextzi1',    'xan',i,j)
+       call fill_ev_tag(ev_fmt, iev_fexti2(1),    'fextxi2',    'xan',i,j)
+       call fill_ev_tag(ev_fmt, iev_fexti2(2),    'fextyi2',    'xan',i,j)
+       call fill_ev_tag(ev_fmt, iev_fexti2(3),    'fextzi2',    'xan',i,j)
     endif
  endif
  if (was_accreted(iexternalforce,-1.0)) then

@@ -422,8 +422,8 @@ contains
       open(iunit,file=fileout,position='append')
     endif
 
-!--Determine the centre of mass of each star
-!--NB: In this version two center masses of star should be lie on x axe!
+    ! Determine the centre of mass of each star
+    ! NB: In this version two center masses of star should be lie on x axe!
 
     iA = 1
     iB = 1

@@ -37,13 +37,14 @@ module energies
                                iev_alpha,iev_B,iev_divB,iev_hdivB,iev_beta,iev_temp,iev_etao,iev_etah(2),&
                                iev_etaa,iev_vel,iev_vhall,iev_vion,iev_n(7),&
                                iev_dtg,iev_ts,iev_dm(maxdusttypes),iev_momall,iev_angall,iev_maccsink(2),&
-                               ! TODO define tag name
+                               ! NB: define tag name
                                iev_evector(3),iev_omega(3),&
                                iev_fstar1(3),iev_fstar2(3),&
                                iev_fstar_tensor(3,3),&
                                iev_comstar1(3),iev_comstar2(3),&
                                iev_vcomstar1(3),iev_vcomstar2(3),&
                                iev_fexti1(3),iev_fexti2(3),&
+                               iev_fxyz(3),&
                                iev_macc,iev_eacc,iev_totlum,iev_erot(4),iev_viscrat,iev_gws(8)
  integer,         public    :: iev_erad
  real,            public    :: erad
@@ -83,7 +84,7 @@ subroutine compute_energies(t)
  use eos_piecewise,  only:gamma_pwp
  use io,             only:id,fatal,master
  use externalforces, only:externalforce,externalforce_vdependent,iext_gwinspiral,was_accreted,accradius1
- ! TODO use value
+ ! NB: use value
  use extern_gwinspiral, only:&
                          nstar,&
                          evector_old,omega_old,&
@@ -183,7 +184,7 @@ subroutine compute_energies(t)
 
 !$omp parallel default(none) &
 !$omp shared(maxp,maxphase,maxalpha) &
-!$omp shared(xyzh,vxyzu,pxyzu,rad,iexternalforce,npart,t,id) &
+!$omp shared(xyzh,vxyzu,fxyzu,pxyzu,rad,iexternalforce,npart,t,id) &
 !$omp shared(alphaind,massoftype,irealvisc,iu) &
 !$omp shared(ieos,gamma,nptmass,xyzmh_ptmass,vxyz_ptmass,xyzcom) &
 !$omp shared(Bevol,divcurlB,iphase,poten,dustfrac,use_dustfrac) &
@@ -194,6 +195,7 @@ subroutine compute_energies(t)
 !$omp shared(iev_B,iev_divB,iev_hdivB,iev_beta,iev_temp,iev_etao,iev_etah) &
 !$omp shared(iev_etaa,iev_vel,iev_vhall,iev_vion,iev_n) &
 !$omp shared(nstar,iev_fexti1,iev_fexti2) &
+!$omp shared(iev_fxyz) &
 !$omp shared(iev_dtg,iev_ts,iev_macc,iev_totlum,iev_erot,iev_viscrat) &
 !$omp shared(eos_vars,grainsize,graindens,ndustsmall) &
 !$omp private(i,j,xi,yi,zi,hi,rhoi,vxi,vyi,vzi,Bxi,Byi,Bzi,Bi,B2i,epoti,vsigi,v2i) &
@@ -327,6 +329,11 @@ subroutine compute_energies(t)
           call ev_data_update(ev_data_thread,iev_erot(3),erotzi)
        endif
 
+       ! NB: eq value
+       call ev_data_update(ev_data_thread,iev_fxyz(1),fxyzu(1,i))
+       call ev_data_update(ev_data_thread,iev_fxyz(2),fxyzu(2,i))
+       call ev_data_update(ev_data_thread,iev_fxyz(3),fxyzu(3,i))
+
        if (iexternalforce > 0) then
           dumx = 0.
           dumy = 0.
@@ -336,7 +343,7 @@ subroutine compute_energies(t)
 #else
           call externalforce(iexternalforce,xi,yi,zi,hi,t,dumx,dumy,dumz,epoti,ii=i)
           call externalforce_vdependent(iexternalforce,xyzh(1:3,i),vxyzu(1:3,i),fdum,epoti)
-          ! TODO eq value
+          ! NB: eq value
           if(iexternalforce == iext_gwinspiral) then
              if(i <= nstar(1)) then
                call ev_data_update(ev_data_thread,iev_fexti1(1),dumx)
@@ -740,7 +747,7 @@ subroutine compute_energies(t)
     angzall = angz + angaccz
     ev_data(iev_sum,iev_angall) = sqrt(angxall*angxall + angyall*angyall + angzall*angzall)
 
-    ! TODO eq value
+    ! NB: eq value
     if (iexternalforce == iext_gwinspiral) then
        ev_data(iev_sum,iev_evector(1)) = evector_old(1)
        ev_data(iev_sum,iev_evector(2)) = evector_old(2)

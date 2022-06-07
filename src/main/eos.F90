@@ -28,7 +28,7 @@ module eos
 !
 ! :References: None
 !
-! :Owner: James Wurster
+! :Owner: Daniel Price
 !
 ! :Runtime parameters:
 !   - X           : *H mass fraction (ignored if variable composition)*

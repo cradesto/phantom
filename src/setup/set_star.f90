@@ -307,10 +307,8 @@ subroutine set_star_thermalenergy(ieos,den,pres,r,npart,xyzh,vxyzu,rad,eos_vars,
     else
        !  Interpolate density and pressure from table
        ri    = sqrt(dot_product(xyzh(1:3,i),xyzh(1:3,i)))
-       ! densi = yinterp(den,r,ri)
-       ! presi = yinterp(pres,r,ri)
-       densi = yinterp(den(1:npts),r(1:npts),ri)
-       presi = yinterp(pres(1:npts),r(1:npts),ri)
+       densi = yinterp(den,r,ri)
+       presi = yinterp(pres,r,ri)
     endif
 
     select case(ieos)

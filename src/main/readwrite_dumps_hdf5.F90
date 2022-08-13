@@ -721,6 +721,7 @@ subroutine read_any_dump_hdf5(                                                  
                       got_arrays%got_raden,       &
                       got_arrays%got_kappa,       &
                       got_arrays%got_Tdust,       &
+                      got_arrays%got_nucleation,  &
                       got_arrays%got_iorig,       &
                       iphase,                     &
                       xyzh,                       &

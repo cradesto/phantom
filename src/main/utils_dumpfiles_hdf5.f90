@@ -17,7 +17,7 @@ module utils_dumpfiles_hdf5
 ! :Dependencies: dim, eos, part, utils_hdf5
 !
  use dim,        only:maxtypes,maxdustsmall,maxdustlarge,nabundances,nsinkproperties
- use part,       only:eos_vars_label,igasP,itemp,maxirad
+ use part,       only:eos_vars_label,igasP,itemp,maxirad,n_nucleation
  use eos,        only:ieos,eos_is_non_ideal,eos_outputs_gasP,eos_outputs_temp
  use utils_hdf5, only:write_to_hdf5,    &
                       read_from_hdf5,   &
@@ -145,6 +145,7 @@ module utils_dumpfiles_hdf5
                got_raden(maxirad),                   &
                got_kappa,                            &
                got_Tdust,                            &
+               got_nucleation(n_nucleation),         &
                got_iorig,                            &
                got_krome_mols(max_krome_nmols_hdf5), &
                got_krome_gamma,                      &
@@ -857,6 +858,7 @@ subroutine read_hdf5_arrays( &
  got_arrays%got_raden       = .false.
  got_arrays%got_kappa       = .false.
  got_arrays%got_Tdust       = .false.
+ got_arrays%got_nucleation  = .false.
  got_arrays%got_iorig       = .false.
  got_arrays%got_krome_mols  = .false.
  got_arrays%got_krome_gamma = .false.

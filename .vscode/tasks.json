@@ -32,8 +32,8 @@
       "command": "make",
       "args": [
         "-C",
-        "/home/marat/phys/phantom/phantom_test/",
-        "analysis"
+        "/home/marat/phys/phantom/phantom_test/test_gw/star5/",
+        "setup"
       ],
       "osx": {
         "args": [

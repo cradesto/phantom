@@ -19,10 +19,10 @@
       //   "binary_00000.tmp",
       //   "0.0"
       // ],
-      "program": "/home/marat/phys/phantom/phantom_test/test_gw/m1_1.0Msun_r1_10km_m2_1.0Msun_r2_10km_d_100km_idealpluspoly/phantom",
+      "program": "/home/marat/phys/phantom/phantom_test/test_gw/star5/phantomsetup",
       "args": [
         // "binary.in"
-        "star_m1.in"
+        "star_m1"
       ],
       // "program": "/home/marat/phys/phantom/phantom_test/test_gw/wd/phantomanalysis",
       // "args": [

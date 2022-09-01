@@ -279,6 +279,11 @@ contains
       return
     endif
 
+    if(rhoi_cgs <= 0.0) then
+      tempi = 0.0
+      return
+    endif
+
     tempi = presi_cgs - presi_poly_cgs
     tempi = mu*tempi/(rhoi_cgs*Rg)
 

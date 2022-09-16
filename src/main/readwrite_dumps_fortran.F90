@@ -18,10 +18,10 @@ module readwrite_dumps_fortran
 !
 ! :Runtime parameters: None
 !
-! :Dependencies: boundary, checkconserved, dim, dump_utils, dust, eos,
-!   externalforces, fileutils, io, krome_user, lumin_nsdisc, memory, mpi,
-!   mpiutils, options, part, readwrite_dumps_common, setup_params,
-!   sphNGutils, timestep, units
+! :Dependencies: boundary, checkconserved, dim, dump_utils, dust,
+!   dust_formation, eos, externalforces, fileutils, io, krome_user,
+!   lumin_nsdisc, memory, mpi, mpiutils, options, part,
+!   readwrite_dumps_common, setup_params, sphNGutils, timestep, units
 !
  use dump_utils, only:lenid,ndatatypes,i_int,i_int1,i_int2,i_int4,i_int8,&
                       i_real,i_real4,i_real8,int1,int2,int1o,int2o,dump_h,lentag
@@ -219,7 +219,7 @@ subroutine write_fulldump_fortran(t,dumpfile,ntotal,iorder,sphNG)
                  divcurlv,divcurlv_label,divcurlB,divcurlB_label,poten,dustfrac,deltav,deltav_label,tstop,&
                  dustfrac_label,tstop_label,dustprop,dustprop_label,eos_vars,eos_vars_label,ndusttypes,ndustsmall,VrelVf,&
                  VrelVf_label,dustgasprop,dustgasprop_label,dust_temp,pxyzu,pxyzu_label,dens,& !,dvdx,dvdx_label
-                 rad,rad_label,radprop,radprop_label,do_radiation,maxirad,maxradprop,itemp,igasP,&
+                 rad,rad_label,radprop,radprop_label,do_radiation,maxirad,maxradprop,itemp,igasP,igamma,&
                  iorig,iX,iZ,imu,nucleation,nucleation_label,n_nucleation
  use options,    only:use_dustfrac,use_var_comp
  use dump_utils, only:tag,open_dumpfile_w,allocate_header,&
@@ -375,6 +375,7 @@ subroutine write_fulldump_fortran(t,dumpfile,ntotal,iorder,sphNG)
        endif
        if (eos_is_non_ideal(ieos) .and. .not.store_dust_temperature) then
           call write_array(1,eos_vars(itemp,:),eos_vars_label(itemp),npart,k,ipass,idump,nums,ierrs(12))
+          call write_array(1,eos_vars(igamma,:),eos_vars_label(igamma),npart,k,ipass,idump,nums,ierrs(12))
        endif
        call write_array(1,vxyzu,vxyzu_label,maxvxyzu,npart,k,ipass,idump,nums,ierrs(4))
        ! write pressure to file
@@ -1275,7 +1276,7 @@ subroutine read_phantom_arrays(i1,i2,noffset,narraylengths,nums,npartread,nparto
                    alphafile,tfile,phantomdump,got_iphase,got_xyzh,got_vxyzu,got_alpha, &
                    got_krome_mols,got_krome_gamma,got_krome_mu,got_krome_T,got_x,got_z,got_mu, &
                    got_abund,got_dustfrac,got_sink_data,got_sink_vels,got_Bxyz,got_psi,got_dustprop,got_pxyzu,got_VrelVf, &
-                   got_dustgasprop,got_temp,got_raden,got_kappa,got_Tdust,got_iorig,iphase,&
+                   got_dustgasprop,got_temp,got_raden,got_kappa,got_Tdust,got_nucleation,got_iorig,iphase,&
                    xyzh,vxyzu,pxyzu,alphaind,xyzmh_ptmass,Bevol,iorig,iprint,ierr)
 
  return

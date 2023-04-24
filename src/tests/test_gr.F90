@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------!
 ! The Phantom Smoothed Particle Hydrodynamics code, by Daniel Price et al. !
-! Copyright (c) 2007-2022 The Authors (see AUTHORS)                        !
+! Copyright (c) 2007-2023 The Authors (see AUTHORS)                        !
 ! See LICENCE file for usage and distribution conditions                   !
 ! http://phantomsph.bitbucket.io/                                          !
 !--------------------------------------------------------------------------!
@@ -15,8 +15,8 @@ module testgr
 ! :Runtime parameters: None
 !
 ! :Dependencies: cons2prim, cons2primsolver, eos, extern_gr, inverse4x4,
-!   io, metric, metric_tools, options, part, physcon, step_lf_global,
-!   testutils, units, utils_gr, vectorutils
+!   io, metric, metric_tools, part, physcon, step_lf_global, testutils,
+!   units, utils_gr, vectorutils
 !
  use testutils, only:checkval,checkvalbuf,checkvalbuf_end,update_test_scores
  implicit none

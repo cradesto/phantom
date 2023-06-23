@@ -30,7 +30,11 @@ module mpiforce
     sequence
     real             :: xpartvec(maxxpartveciforce,minpart)
     real             :: fsums(maxfsum,minpart)
+#ifndef EXPAND_FGRAV_IN_MULTIPOLE
     real             :: fgrav(20)
+#else
+    real             :: fgrav(58)
+#endif
     real             :: xpos(3)
     real             :: xsizei
     real             :: rcuti

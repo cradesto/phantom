@@ -18,7 +18,7 @@ module analysis
 !   sortutils
 !
  use getneighbours,    only:generate_neighbour_lists, read_neighbours, write_neighbours, &
-                           neighcount,neighb,neighmax,meanneigh
+                           sph_neighbours_count,sph_neighbours,neighmax,meanneigh
  implicit none
  character(len=27), parameter, public :: analysistype = 'velocitydispersion_vs_scale'
  public :: do_analysis
@@ -423,9 +423,9 @@ subroutine find_particles_in_range(ipart,npart,xyzh,particlelist,d)
 
 ! Add neighbours to test stack
 
- do l=1,neighcount(ipart)
+ do l=1,sph_neighbours_count(ipart)
     nstack = nstack+1
-    teststack(nstack) = neighb(ipart,l)
+    teststack(nstack) = sph_neighbours(ipart,l)
  enddo
 
  particlelist(:) = 0
@@ -454,10 +454,10 @@ subroutine find_particles_in_range(ipart,npart,xyzh,particlelist,d)
     ! If particle within the tolerance distance, then add its neighbours to the stack for testing
     if (sep < tolerance*d) then
 
-       do l=1,neighcount(jpart)
+       do l=1,sph_neighbours_count(jpart)
           if (nstack==npart) exit
           nstack = nstack+1
-          teststack(nstack) = neighb(jpart,l)
+          teststack(nstack) = sph_neighbours(jpart,l)
        enddo
     endif
 
@@ -538,7 +538,7 @@ subroutine deallocate_arrays
 
  implicit none
 
- deallocate(neighcount,neighb)
+ deallocate(sph_neighbours_count,sph_neighbours)
  deallocate(particlelist,checked,rhosort,rhopart)
  deallocate(vmean,vdisp)
  deallocate(ekin,egrav,etherm,emag)

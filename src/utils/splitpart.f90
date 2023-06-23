@@ -76,7 +76,7 @@ subroutine merge_all_particles(npart,npartoftype,massoftype,xyzh,vxyzu, &
  use part,          only:isdead_or_accreted,copy_particle
  use timestep_ind,  only:nactive
  use io,            only:fatal,error
- use getneighbours, only:generate_neighbour_lists,neighb,neighcount,neighmax
+ use getneighbours, only:generate_neighbour_lists,sph_neighbours,sph_neighbours_count,neighmax
  integer, intent(inout) :: npart,npartoftype(:)
  integer, intent(in)    :: nchild
  real,    intent(inout) :: massoftype(:)
@@ -159,8 +159,8 @@ subroutine merge_all_particles(npart,npartoftype,massoftype,xyzh,vxyzu, &
        ichild = 1
        on_list(i) = i
        children_list(ichild) = i
-       neigh_count = neighcount(i)
-       neighbours(:) = neighb(i,:)
+       neigh_count = sph_neighbours_count(i)
+       neighbours(:) = sph_neighbours(i,:)
 
        ! calculate distance to neighbours
        do k = 1, neigh_count

@@ -421,7 +421,11 @@ subroutine recv_cellforce(target_stack,xbuf,irequestrecv)
 #endif
           enddo
 #ifdef GRAVITY
+#ifndef EXPAND_FGRAV_IN_MULTIPOLE
           do k = 1,20
+#else
+          do k = 1,58
+#endif
              target_stack%cells(iwait)%fgrav(k) = target_stack%cells(iwait)%fgrav(k) + xbuf(iproc)%fgrav(k)
           enddo
 #endif

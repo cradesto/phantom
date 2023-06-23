@@ -32,8 +32,8 @@
       "command": "make",
       "args": [
         "-C",
-        "/home/marat/phys/phantom/phantom_test/test_gw/star5/",
-        "setup"
+        "/home/marat/phys/phantom/phantom_test/test_gw/star_tolv_1e-2_tree_0.5_eos_02_r_10_n_200_stripping/",
+        // "analysis"
       ],
       "osx": {
         "args": [
@@ -59,7 +59,7 @@
       "command": "make",
       "args": [
         "-C",
-        "/home/marat/phys/phantom/phantom_test/",
+        "/home/marat/phys/phantom/phantom_test/test_gw/star_tolv_1e-2_tree_0.5_eos_02_r_10_n_200_stripping/",
         "clean"
       ],
       "osx": {

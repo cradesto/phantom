@@ -57,7 +57,11 @@ module kdtree
  public :: empty_tree
  public :: compute_fnode, expand_fgrav_in_taylor_series
 
- integer, parameter, public :: lenfgrav = 20
+#ifndef EXPAND_FGRAV_IN_MULTIPOLE
+  integer, parameter, public :: lenfgrav = 20
+#else
+  integer, parameter, public :: lenfgrav = 58
+#endif
 
  integer, public :: maxlevel_indexed, maxlevel
 
@@ -899,8 +903,14 @@ end subroutine sort_particles_in_cell
 !  (all particles within a given h_i and optionally within h_j)
 !+
 !----------------------------------------------------------------
+#ifndef EXPAND_FGRAV_IN_MULTIPOLE
 subroutine getneigh(node,xpos,xsizei,rcuti,ndim,listneigh,nneigh,xyzh,xyzcache,ixyzcachesize,ifirstincell,&
-& get_hj,get_f,fnode,remote_export)
+  & get_hj,get_f,fnode,remote_export)
+#else
+subroutine getneigh(node,xpos,xsizei,rcuti,ndim,listneigh,nneigh,xyzh,xyzcache,ixyzcachesize,ifirstincell,&
+  & get_hj,get_f,fnode,remote_export,inode)
+ use part, only:igas,massoftype
+#endif
 #ifdef PERIODIC
  use boundary, only:dxbound,dybound,dzbound
 #endif
@@ -923,6 +933,10 @@ subroutine getneigh(node,xpos,xsizei,rcuti,ndim,listneigh,nneigh,xyzh,xyzcache,i
  logical, intent(in)                :: get_f
  real,    intent(out),    optional  :: fnode(lenfgrav)
  logical, intent(out),    optional  :: remote_export(:)
+#ifdef EXPAND_FGRAV_IN_MULTIPOLE
+ integer, intent(in),     optional  :: inode
+ real :: pmassi
+#endif
  integer, parameter :: istacksize = 300
  integer :: maxcache
  integer :: nstack(istacksize)
@@ -964,6 +978,18 @@ subroutine getneigh(node,xpos,xsizei,rcuti,ndim,listneigh,nneigh,xyzh,xyzcache,i
  istack = 1
  nstack(istack) = irootnode
  open_tree_node = .false.
+
+#ifdef GRAVITY
+#ifdef EXPAND_FGRAV_IN_MULTIPOLE
+  pmassi = massoftype(igas)
+  if(inode > 0) then
+    npnode = inoderange(2,inode) - inoderange(1,inode) + 1
+    write(*,'(i2,a,i3,a)', advance="no") inode, " (", npnode, ") = "
+  else
+    write(*,'(i2,a)', advance="no") inode, " ( 0) = "
+  endif
+#endif
+#endif
 
  over_stack: do while(istack /= 0)
     n = nstack(istack)
@@ -1058,6 +1084,12 @@ subroutine getneigh(node,xpos,xsizei,rcuti,ndim,listneigh,nneigh,xyzh,xyzcache,i
                 enddo
              endif if_cache_fits
              nneigh = nneigh + npnode
+#ifdef EXPAND_FGRAV_IN_MULTIPOLE
+             if (present(inode)) then
+               npnode = inoderange(2,n) - inoderange(1,n) + 1
+               write(*,'(i2,a,i3,a)', advance="no") n, "-(", npnode, "), "
+             endif
+#endif
           endif if_global_walk
        else
           if (istack+2 > istacksize) call fatal('getneigh','stack overflow in getneigh')
@@ -1098,6 +1130,12 @@ subroutine getneigh(node,xpos,xsizei,rcuti,ndim,listneigh,nneigh,xyzh,xyzcache,i
 #else
           dr = 1./sqrt(r2)
 #endif
+#ifdef EXPAND_FGRAV_IN_MULTIPOLE
+          if (present(inode)) then
+            npnode = inoderange(2,n) - inoderange(1,n) + 1
+            write(*,'(i2,a,i3,a,i2,a)', advance="no") n, "+(", npnode, ", ", ifirstincell(n), "), "
+          endif
+#endif
           call compute_fnode(dx,dy,dz,dr,totmass_node,quads,fnode)
 
        endif count_gravity
@@ -1105,6 +1143,10 @@ subroutine getneigh(node,xpos,xsizei,rcuti,ndim,listneigh,nneigh,xyzh,xyzcache,i
 
     endif if_open_node
  enddo over_stack
+
+#ifdef EXPAND_FGRAV_IN_MULTIPOLE
+ write(*,'()')
+#endif
 
 end subroutine getneigh
 
@@ -1119,17 +1161,19 @@ pure subroutine compute_fnode(dx,dy,dz,dr,totmass,quads,fnode)
  real, intent(in)    :: dx,dy,dz,dr,totmass
  real, intent(in)    :: quads(6)
  real, intent(inout) :: fnode(lenfgrav)
- real :: dr3,dr4,dr5,dr6,dr3m,rx,ry,rz,qxx,qxy,qxz,qyy,qyz,qzz
+ real :: dr2,dr3,dr4,dr5,dr6,dr2m,dr3m,rx,ry,rz,qxx,qxy,qxz,qyy,qyz,qzz
  real :: dr4m3,rijQij,riQix,riQiy,riQiz,fqx,fqy,fqz
  real :: dfxdxq,dfxdyq,dfxdzq,dfydyq,dfydzq,dfzdzq
  real :: d2fxxxq,d2fxxyq,d2fxxzq,d2fxyyq,d2fxyzq
  real :: d2fxzzq,d2fyyyq,d2fyyzq,d2fyzzq,d2fzzzq
 
  ! note: dr == 1/sqrt(r2)
- dr3  = dr*dr*dr
+ dr2  = dr*dr
+ dr3  = dr*dr2
  dr4  = dr*dr3
  dr5  = dr*dr4
  dr6  = dr*dr5
+ dr2m  = totmass*dr2
  dr3m  = totmass*dr3
  dr4m3 = 3.*totmass*dr4
  rx  = dx*dr
@@ -1194,6 +1238,52 @@ pure subroutine compute_fnode(dx,dy,dz,dr,totmass,quads,fnode)
  fnode(19) = fnode(19) - dr4m3*(5.*rz*rz*rz - 3.*rz) + d2fzzzq ! d2fzdzdz
  fnode(20) = fnode(20) - totmass*dr - 0.5*rijQij*dr3   ! potential
 
+#ifdef EXPAND_FGRAV_IN_MULTIPOLE
+! 1/r^2
+ fnode(21) = fnode(21) - dr2m*rx ! fx
+ fnode(22) = fnode(22) - dr2m*ry ! fy
+ fnode(23) = fnode(23) - dr2m*rz ! fz
+! 1/r^3
+ fnode(24) = fnode(24) + dr3m*(3.*rx*rx - 1.) ! dfx/dx
+ fnode(25) = fnode(25) + dr3m*(3.*rx*ry)      ! dfx/dy = dfy/dx
+ fnode(26) = fnode(26) + dr3m*(3.*rx*rz)      ! dfx/dz = dfz/dx
+ fnode(27) = fnode(27) + dr3m*(3.*ry*ry - 1.) ! dfy/dy
+ fnode(28) = fnode(28) + dr3m*(3.*ry*rz)      ! dfy/dz = dfz/dy
+ fnode(29) = fnode(29) + dr3m*(3.*rz*rz - 1.) ! dfz/dz
+! 1/r^4
+ fnode(30) = fnode(30) + fqx ! fx
+ fnode(31) = fnode(31) + fqy ! fy
+ fnode(32) = fnode(32) + fqz ! fz
+ fnode(33) = fnode(33) - dr4m3*(5.*rx*rx*rx - 3.*rx) ! d2fxdxdx
+ fnode(34) = fnode(34) - dr4m3*(5.*rx*rx*ry - ry)    ! d2fxdxdy
+ fnode(35) = fnode(35) - dr4m3*(5.*rx*rx*rz - rz)    ! d2fxdxdz
+ fnode(36) = fnode(36) - dr4m3*(5.*rx*ry*ry - rx)    ! d2fxdydy
+ fnode(37) = fnode(37) - dr4m3*(5.*rx*ry*rz)         ! d2fxdydz
+ fnode(38) = fnode(38) - dr4m3*(5.*rx*rz*rz - rx)    ! d2fxdzdz
+ fnode(39) = fnode(39) - dr4m3*(5.*ry*ry*ry - 3.*ry) ! d2fydydy
+ fnode(40) = fnode(40) - dr4m3*(5.*ry*ry*rz - rz)    ! d2fydydz
+ fnode(41) = fnode(41) - dr4m3*(5.*ry*rz*rz - ry)    ! d2fydzdz
+ fnode(42) = fnode(42) - dr4m3*(5.*rz*rz*rz - 3.*rz) ! d2fzdzdz
+! 1/r^5
+ fnode(43) = fnode(43) + dfxdxq ! dfx/dx
+ fnode(44) = fnode(44) + dfxdyq ! dfx/dy = dfy/dx
+ fnode(45) = fnode(45) + dfxdzq ! dfx/dz = dfz/dx
+ fnode(46) = fnode(46) + dfydyq ! dfy/dy
+ fnode(47) = fnode(47) + dfydzq ! dfy/dz = dfz/dy
+ fnode(48) = fnode(48) + dfzdzq ! dfz/dz
+! 1/r^6
+ fnode(49) = fnode(49) + d2fxxxq ! d2fxdxdx
+ fnode(50) = fnode(50) + d2fxxyq ! d2fxdxdy
+ fnode(51) = fnode(51) + d2fxxzq ! d2fxdxdz
+ fnode(52) = fnode(52) + d2fxyyq ! d2fxdydy
+ fnode(53) = fnode(53) + d2fxyzq ! d2fxdydz
+ fnode(54) = fnode(54) + d2fxzzq ! d2fxdzdz
+ fnode(55) = fnode(55) + d2fyyyq ! d2fydydy
+ fnode(56) = fnode(56) + d2fyyzq ! d2fydydz
+ fnode(57) = fnode(57) + d2fyzzq ! d2fydzdz
+ fnode(58) = fnode(58) + d2fzzzq ! d2fzdzdz
+#endif
+
 end subroutine compute_fnode
 
 !----------------------------------------------------------------
@@ -1212,10 +1302,19 @@ end subroutine compute_fnode
 !   fxi,fyi,fzi : gravitational force at the new position
 !+
 !----------------------------------------------------------------
+#ifndef EXPAND_FGRAV_IN_MULTIPOLE
 pure subroutine expand_fgrav_in_taylor_series(fnode,dx,dy,dz,fxi,fyi,fzi,poti)
+#else
+pure subroutine expand_fgrav_in_taylor_series(fnode,dx,dy,dz,fxi,fyi,fzi,frxi,fryi,frzi,poti)
+#endif
  real, intent(in)  :: fnode(lenfgrav)
  real, intent(in)  :: dx,dy,dz
  real, intent(out) :: fxi,fyi,fzi,poti
+#ifdef EXPAND_FGRAV_IN_MULTIPOLE
+ real, intent(out) :: frxi(5),fryi(5),frzi(5)
+ real :: fxi2,fyi2,fzi2
+!  real :: tol = 1.0e-19
+#endif
  real :: dfxx,dfxy,dfxz,dfyy,dfyz,dfzz
  real :: d2fxxx,d2fxxy,d2fxxz,d2fxyy,d2fxyz,d2fxzz,d2fyyy,d2fyyz,d2fyzz,d2fzzz
 
@@ -1250,6 +1349,155 @@ pure subroutine expand_fgrav_in_taylor_series(fnode,dx,dy,dz,fxi,fyi,fzi,poti)
            + dy*(dfyz + 0.5*(dx*d2fxyz + dy*d2fyyz + dz*d2fyzz)) &
            + dz*(dfzz + 0.5*(dx*d2fxzz + dy*d2fyzz + dz*d2fzzz))
  poti = poti - (dx*fxi + dy*fyi + dz*fzi)
+
+#ifdef EXPAND_FGRAV_IN_MULTIPOLE
+! 1/r^2
+ frxi(1) = fnode(21)
+ fryi(1) = fnode(22)
+ frzi(1) = fnode(23)
+! 1/r^3
+ dfxx = fnode(24)
+ dfxy = fnode(25) ! = dfyx
+ dfxz = fnode(26) ! = dfzx
+ dfyy = fnode(27)
+ dfyz = fnode(28) ! = dfzy
+ dfzz = fnode(29)
+ frxi(2) = dx*dfxx + dy*dfxy + dz*dfxz
+ fryi(2) = dx*dfxy + dy*dfyy + dz*dfyz
+ frzi(2) = dx*dfxz + dy*dfyz + dz*dfzz
+! 1/r^4
+ fxi2 = fnode(30)
+ fyi2 = fnode(31)
+ fzi2 = fnode(32)
+ d2fxxx = fnode(33)
+ d2fxxy = fnode(34) ! = d2fxyx = d2fyxx
+ d2fxxz = fnode(35) ! = d2fxzx = d2fzxx
+ d2fxyy = fnode(36) ! = d2fyxy = d2fyyx
+ d2fxyz = fnode(37) ! = d2fxzy = d2fyxz = d2fyzx = d2fzxy = d2fzyx
+ d2fxzz = fnode(38) ! = d2fzxz = d2fzzx
+ d2fyyy = fnode(39)
+ d2fyyz = fnode(40) ! = d2fyzy = d2fzyy
+ d2fyzz = fnode(41) ! = d2fzyz = d2fzzy
+ d2fzzz = fnode(42)
+ frxi(3) = fxi2 + dx*(0.5*(dx*d2fxxx + dy*d2fxxy + dz*d2fxxz)) &
+               + dy*(0.5*(dx*d2fxxy + dy*d2fxyy + dz*d2fxyz)) &
+               + dz*(0.5*(dx*d2fxxz + dy*d2fxyz + dz*d2fxzz))
+ fryi(3) = fyi2 + dx*(0.5*(dx*d2fxxy + dy*d2fxyy + dz*d2fxyz)) &
+               + dy*(0.5*(dx*d2fxyy + dy*d2fyyy + dz*d2fyyz)) &
+               + dz*(0.5*(dx*d2fxyz + dy*d2fyyz + dz*d2fyzz))
+ frzi(3) = fzi2 + dx*(0.5*(dx*d2fxxz + dy*d2fxyz + dz*d2fxzz)) &
+               + dy*(0.5*(dx*d2fxyz + dy*d2fyyz + dz*d2fyzz)) &
+               + dz*(0.5*(dx*d2fxzz + dy*d2fyzz + dz*d2fzzz))
+! 1/r^5
+ dfxx = fnode(43)
+ dfxy = fnode(44) ! = dfyx
+ dfxz = fnode(45) ! = dfzx
+ dfyy = fnode(46)
+ dfyz = fnode(47) ! = dfzy
+ dfzz = fnode(48)
+ frxi(4) = dx*dfxx + dy*dfxy + dz*dfxz
+ fryi(4) = dx*dfxy + dy*dfyy + dz*dfyz
+ frzi(4) = dx*dfxz + dy*dfyz + dz*dfzz
+ ! 1/r^6
+ d2fxxx = fnode(49)
+ d2fxxy = fnode(50) ! = d2fxyx = d2fyxx
+ d2fxxz = fnode(51) ! = d2fxzx = d2fzxx
+ d2fxyy = fnode(52) ! = d2fyxy = d2fyyx
+ d2fxyz = fnode(53) ! = d2fxzy = d2fyxz = d2fyzx = d2fzxy = d2fzyx
+ d2fxzz = fnode(54) ! = d2fzxz = d2fzzx
+ d2fyyy = fnode(55)
+ d2fyyz = fnode(56) ! = d2fyzy = d2fzyy
+ d2fyzz = fnode(57) ! = d2fzyz = d2fzzy
+ d2fzzz = fnode(58)
+ frxi(5) = dx*(0.5*(dx*d2fxxx + dy*d2fxxy + dz*d2fxxz)) &
+         + dy*(0.5*(dx*d2fxxy + dy*d2fxyy + dz*d2fxyz)) &
+         + dz*(0.5*(dx*d2fxxz + dy*d2fxyz + dz*d2fxzz))
+ fryi(5) = dx*(0.5*(dx*d2fxxy + dy*d2fxyy + dz*d2fxyz)) &
+         + dy*(0.5*(dx*d2fxyy + dy*d2fyyy + dz*d2fyyz)) &
+         + dz*(0.5*(dx*d2fxyz + dy*d2fyyz + dz*d2fyzz))
+ frzi(5) = dx*(0.5*(dx*d2fxxz + dy*d2fxyz + dz*d2fxzz)) &
+         + dy*(0.5*(dx*d2fxyz + dy*d2fyyz + dz*d2fyzz)) &
+         + dz*(0.5*(dx*d2fxzz + dy*d2fyzz + dz*d2fzzz))
+
+!  fxi2 = (fnode(21) + fnode(30))
+!  fyi2 = (fnode(22) + fnode(31))
+!  fzi2 = (fnode(23) + fnode(32))
+!  dfxx = (fnode(24) + fnode(43))
+!  dfxy = (fnode(25) + fnode(44))
+!  dfxz = (fnode(26) + fnode(45))
+!  dfyy = (fnode(27) + fnode(46))
+!  dfyz = (fnode(28) + fnode(47))
+!  dfzz = (fnode(29) + fnode(48))
+!  d2fxxx = (fnode(33) + fnode(49))
+!  d2fxxy = (fnode(34) + fnode(50))
+!  d2fxxz = (fnode(35) + fnode(51))
+!  d2fxyy = (fnode(36) + fnode(52))
+!  d2fxyz = (fnode(37) + fnode(53))
+!  d2fxzz = (fnode(38) + fnode(54))
+!  d2fyyy = (fnode(39) + fnode(55))
+!  d2fyyz = (fnode(40) + fnode(56))
+!  d2fyzz = (fnode(41) + fnode(57))
+!  d2fzzz = (fnode(42) + fnode(58))
+
+!  if(abs(fnode(1) - fxi2) > tol)&
+!    write(*,*) 'fxi2 = ', fnode(1) - fxi2
+!  if(abs(fnode(2) - fyi2) > tol)&
+!    write(*,*) 'fyi2 = ', fnode(2) - fyi2
+!  if(abs(fnode(3) - fzi2) > tol)&
+!    write(*,*) 'fzi2 = ', fnode(3) - fzi2
+
+!  if(abs(fnode(4) - dfxx) > tol)&
+!    write(*,*) 'dfxx = ', fnode(4) - dfxx
+!  if(abs(fnode(5) - dfxy) > tol)&
+!    write(*,*) 'dfxy = ', fnode(5) - dfxy
+!  if(abs(fnode(6) - dfxz) > tol)&
+!    write(*,*) 'dfxz = ', fnode(6) - dfxz
+!  if(abs(fnode(7) - dfyy) > tol)&
+!    write(*,*) 'dfyy = ', fnode(7) - dfyy
+!  if(abs(fnode(8) - dfyz) > tol)&
+!    write(*,*) 'dfyz = ', fnode(8) - dfyz
+!  if(abs(fnode(9) - dfzz) > tol)&
+!    write(*,*) 'dfzz = ', fnode(9) - dfzz
+
+!  if(abs(fnode(10) - d2fxxx) > tol)&
+!    write(*,*) 'd2fxxx = ', fnode(10) - d2fxxx
+!  if(abs(fnode(11) - d2fxxy) > tol)&
+!    write(*,*) 'd2fxxy = ', fnode(11) - d2fxxy
+!  if(abs(fnode(12) - d2fxxz) > tol)&
+!    write(*,*) 'd2fxxz = ', fnode(12) - d2fxxz
+!  if(abs(fnode(13) - d2fxyy) > tol)&
+!    write(*,*) 'd2fxyy = ', fnode(13) - d2fxyy
+!  if(abs(fnode(14) - d2fxyz) > tol)&
+!    write(*,*) 'd2fxyz = ', fnode(14) - d2fxyz
+!  if(abs(fnode(15) - d2fxzz) > tol)&
+!    write(*,*) 'd2fxzz = ', fnode(15) - d2fxzz
+!  if(abs(fnode(16) - d2fyyy) > tol)&
+!    write(*,*) 'd2fyyy = ', fnode(16) - d2fyyy
+!  if(abs(fnode(17) - d2fyyz) > tol)&
+!    write(*,*) 'd2fyyz = ', fnode(17) - d2fyyz
+!  if(abs(fnode(18) - d2fyzz) > tol)&
+!    write(*,*) 'd2fyzz = ', fnode(18) - d2fyzz
+!  if(abs(fnode(19) - d2fzzz) > tol)&
+!    write(*,*) 'd2fzzz = ', fnode(19) - d2fzzz
+
+!  fxi2 = fxi2 + dx*(dfxx + 0.5*(dx*d2fxxx + dy*d2fxxy + dz*d2fxxz)) &
+!    + dy*(dfxy + 0.5*(dx*d2fxxy + dy*d2fxyy + dz*d2fxyz)) &
+!    + dz*(dfxz + 0.5*(dx*d2fxxz + dy*d2fxyz + dz*d2fxzz))
+!  fyi2 = fyi2 + dx*(dfxy + 0.5*(dx*d2fxxy + dy*d2fxyy + dz*d2fxyz)) &
+!    + dy*(dfyy + 0.5*(dx*d2fxyy + dy*d2fyyy + dz*d2fyyz)) &
+!    + dz*(dfyz + 0.5*(dx*d2fxyz + dy*d2fyyz + dz*d2fyzz))
+!  fzi2 = fzi2 + dx*(dfxz + 0.5*(dx*d2fxxz + dy*d2fxyz + dz*d2fxzz)) &
+!    + dy*(dfyz + 0.5*(dx*d2fxyz + dy*d2fyyz + dz*d2fyzz)) &
+!    + dz*(dfzz + 0.5*(dx*d2fxzz + dy*d2fyzz + dz*d2fzzz))
+
+!  if(abs(fxi - sum(frxi)) > tol)&
+!    write(*,*) 'diff fxi = ', fxi - sum(frxi), fxi, sum(frxi), fxi2
+!  if(abs(fyi - sum(fryi)) > tol)&
+!    write(*,*) 'diff fyi = ', fyi - sum(fryi), fyi, sum(fryi), fyi2
+!  if(abs(fzi - sum(frzi)) > tol)&
+!    write(*,*) 'diff fzi = ', fzi - sum(frzi), fzi, sum(frzi), fzi2
+!  write(*,*) 'fxi = ', fxi, sum(frxi), fxi2
+#endif
 
  return
 end subroutine expand_fgrav_in_taylor_series

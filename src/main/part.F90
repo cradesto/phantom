@@ -264,6 +264,9 @@ module part
 !--derivatives (only needed if derivs is called)
 !
  real, allocatable         :: fxyzu(:,:)
+#ifdef EXPAND_FGRAV_IN_MULTIPOLE
+ real, allocatable         :: frxyz(:,:,:)
+#endif
  real, allocatable         :: dBevol(:,:)
  real(kind=4), allocatable :: divBsymm(:)
  real, allocatable         :: fext(:,:)
@@ -473,6 +476,9 @@ subroutine allocate_part
  call allocate_array('eta_nimhd', eta_nimhd, 4, maxmhdni)
  call allocate_array('luminosity', luminosity, maxlum)
  call allocate_array('fxyzu', fxyzu, maxvxyzu, maxan)
+#ifdef EXPAND_FGRAV_IN_MULTIPOLE
+ call allocate_array('frxyz', frxyz, 6, 3, maxan) ! 1:5 - expansion of 1/r^2-1/^r6, 6 - sum for grav
+#endif
  call allocate_array('dBevol', dBevol, maxBevol, maxmhdan)
  call allocate_array('divBsymm', divBsymm, maxmhdan)
  call allocate_array('fext', fext, 3, maxan)
@@ -551,6 +557,9 @@ subroutine deallocate_part
  if (allocated(eta_nimhd))    deallocate(eta_nimhd)
  if (allocated(luminosity))   deallocate(luminosity)
  if (allocated(fxyzu))        deallocate(fxyzu)
+#ifdef EXPAND_FGRAV_IN_MULTIPOLE
+ if (allocated(frxyz))        deallocate(frxyz)
+#endif
  if (allocated(dBevol))       deallocate(dBevol)
  if (allocated(divBsymm))     deallocate(divBsymm)
  if (allocated(fext))         deallocate(fext)

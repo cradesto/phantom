@@ -23,7 +23,7 @@ module analysis
 !
  use dim,             only:maxp
  use getneighbours,    only:generate_neighbour_lists, read_neighbours, write_neighbours, &
-                           neighcount,neighb,neighmax
+                           sph_neighbours_count,sph_neighbours,neighmax
  implicit none
  character(len=20), parameter, public :: analysistype = 'clumpfind'
 
@@ -245,12 +245,12 @@ subroutine do_analysis(dumpfile,num,xyzh,vxyzu,particlemass,npart,time,iunit)
        neighclump(:) = 0
 
        ! Check if its neighbours are in a clump
-       do jpart=1,neighcount(ipart)
-          if (neighcount(ipart) > neighmax) then
+       do jpart=1,sph_neighbours_count(ipart)
+          if (sph_neighbours_count(ipart) > neighmax) then
              print*, 'finding clumps A.  neighcount(ipart) > neighmax.  aborting'
              stop
           endif
-          iclump = member(neighb(ipart,jpart))
+          iclump = member(sph_neighbours(ipart,jpart))
           if (iclump > 0) then
              neighclump(iclump) = neighclump(iclump)+1
           endif
@@ -265,16 +265,16 @@ subroutine do_analysis(dumpfile,num,xyzh,vxyzu,particlemass,npart,time,iunit)
     endif
 
     ! If particle still does not belong to any other clump, then create a new clump for it
-    if (member(ipart)==0 .and. neighcount(ipart) > neighcrit) call initialise_clump(ipart)
+    if (member(ipart)==0 .and. sph_neighbours_count(ipart) > neighcrit) call initialise_clump(ipart)
 
     ! If particle is already in a clump, then add any neighbours not in a clump
     if (member(ipart) > 0) then
-       do jpart=1,neighcount(ipart)
-          if (neighcount(ipart) > neighmax) then
+       do jpart=1,sph_neighbours_count(ipart)
+          if (sph_neighbours_count(ipart) > neighmax) then
              print*, 'finding clumps B.  neighcount(ipart) > neighmax.  aborting'
              stop
           endif
-          if (member(neighb(ipart,jpart))==0) call add_particle_to_clump(neighb(ipart,jpart), member(ipart))
+          if (member(sph_neighbours(ipart,jpart))==0) call add_particle_to_clump(sph_neighbours(ipart,jpart), member(ipart))
        enddo
     endif
 
@@ -353,7 +353,7 @@ subroutine do_analysis(dumpfile,num,xyzh,vxyzu,particlemass,npart,time,iunit)
  call write_clump_data(nclump,deletedclumps,npart, time,dumpfile,proctag)
 
 ! Deallocate memory for next dump
- deallocate(neighcount,neighb,dpoten)
+ deallocate(sph_neighbours_count,sph_neighbours,dpoten)
  deallocate(member,neighclump,clump)
 
 end subroutine do_analysis
@@ -572,8 +572,8 @@ subroutine create_sink_clumps(npart,xyzh)
           endif
 
           ! Add all SPH particle's neighbours to this clump
-          do jpart=1,neighcount(ipart)
-             if (member(neighb(ipart,jpart))==0) call add_particle_to_clump(neighb(ipart,jpart), iptmass)
+          do jpart=1,sph_neighbours_count(ipart)
+             if (member(sph_neighbours(ipart,jpart))==0) call add_particle_to_clump(sph_neighbours(ipart,jpart), iptmass)
           enddo
        endif
     enddo ! End of loop over particles

@@ -19,15 +19,15 @@
       //   "binary_00000.tmp",
       //   "0.0"
       // ],
-      "program": "/home/marat/phys/phantom/phantom_test/test_gw/star5/phantomsetup",
-      "args": [
-        // "binary.in"
-        "star_m1"
-      ],
-      // "program": "/home/marat/phys/phantom/phantom_test/test_gw/wd/phantomanalysis",
+      // "program": "/home/marat/phys/phantom/phantom_test/test_gw/star_tolv_1e-2_tree_0.5_eos_02_r_10_n_200_stripping/phantomanalysis",
       // "args": [
-      //   "/home/marat/phys/phantom/phantom_test/test_gw/wd/binary_00000"
+      //   // "binary.in"
+      //   "star_m1_00990"
       // ],
+      "program": "/home/marat/phys/phantom/phantom_test/test_gw/star_tolv_1e-2_tree_0.5_eos_02_r_10_n_200_stripping/phantom",
+      "args": [
+        "star_m1.in"
+      ],
       // "program": "/home/marat/phys/phantom/phantom_test/test_gw/poly/phantom2hdf5",
       // "args": [
       //   "binary_00000"

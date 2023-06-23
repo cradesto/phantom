@@ -45,6 +45,9 @@ module energies
                                iev_vcomstar1(3),iev_vcomstar2(3),&
                                iev_fexti1(3),iev_fexti2(3),&
                                iev_fxyz(3),&
+#ifdef EXPAND_FGRAV_IN_MULTIPOLE
+                               iev_frxyz(6,3),&
+#endif
                                iev_macc,iev_eacc,iev_totlum,iev_erot(4),iev_viscrat,iev_gws(8)
  integer,         public    :: iev_erad
  real,            public    :: erad
@@ -114,6 +117,9 @@ subroutine compute_energies(t)
  use dust,           only:get_ts,idrag
  integer :: iregime,idusttype
  real    :: tsi(maxdustsmall)
+#endif
+#ifdef EXPAND_FGRAV_IN_MULTIPOLE
+ use part,           only:frxyz
 #endif
  real, intent(in) :: t
  real    :: ev_data_thread(4,0:inumev)
@@ -216,6 +222,9 @@ subroutine compute_energies(t)
 #endif
 #ifdef LIGHTCURVE
 !$omp shared(luminosity,track_lum) &
+#endif
+#ifdef EXPAND_FGRAV_IN_MULTIPOLE
+!$omp shared(frxyz) &
 #endif
 !$omp reduction(+:np,npgas,np_cs_eq_0,np_e_eq_0) &
 !$omp reduction(+:xcom,ycom,zcom,mtot,xmom,ymom,zmom,angx,angy,angz,mdust,mgas) &
@@ -333,6 +342,18 @@ subroutine compute_energies(t)
        call ev_data_update(ev_data_thread,iev_fxyz(1),fxyzu(1,i))
        call ev_data_update(ev_data_thread,iev_fxyz(2),fxyzu(2,i))
        call ev_data_update(ev_data_thread,iev_fxyz(3),fxyzu(3,i))
+
+#ifdef EXPAND_FGRAV_IN_MULTIPOLE
+       ! NB: eq value
+      !  call ev_data_update(ev_data_thread,iev_frxyz(1,1),frxyz(1,1,i))
+      !  write(*,*) 'ene = ', i, frxyz(6,1,i), sum(frxyz(1:5,1,i))
+
+       do j=1,6
+         call ev_data_update(ev_data_thread,iev_frxyz(j,1),frxyz(j,1,i))
+         call ev_data_update(ev_data_thread,iev_frxyz(j,2),frxyz(j,2,i))
+         call ev_data_update(ev_data_thread,iev_frxyz(j,3),frxyz(j,3,i))
+       enddo
+#endif
 
        if (iexternalforce > 0) then
           dumx = 0.

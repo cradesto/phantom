@@ -16,39 +16,39 @@ module analysis
 !
 ! :Dependencies: getneighbours
 !
- use getneighbours,    only:generate_neighbour_lists, read_neighbours, write_neighbours, &
-                           neighcount,neighb,neighmax
- implicit none
- character(len=20), parameter, public :: analysistype = 'getneighbours'
+  use getneighbours,    only:generate_neighbour_lists, write_neighbours, &
+    sph_neighbours_count,sph_neighbours,neighmax
+  implicit none
+  character(len=20), parameter, public :: analysistype = 'getneighbours'
 
- public :: do_analysis
+  public :: do_analysis
 
- private
+  private
 
 contains
 
-subroutine do_analysis(dumpfile,num,xyzh,vxyzu,particlemass,npart,time,iunit)
- character(len=*), intent(in) :: dumpfile
- integer,          intent(in) :: num,npart,iunit
- real,             intent(in) :: xyzh(:,:),vxyzu(:,:)
- real,             intent(in) :: particlemass,time
- character(len=100)           :: neighbourfile
+  subroutine do_analysis(dumpfile,num,xyzh,vxyzu,particlemass,npart,time,iunit)
+    character(len=*), intent(in) :: dumpfile
+    integer,          intent(in) :: num,npart,iunit
+    real,             intent(in) :: xyzh(:,:),vxyzu(:,:)
+    real,             intent(in) :: particlemass,time
+    character(len=100)           :: neighbourfile
 
- !***************************************
- ! Assign neighbour lists to particles by searching shared list of host cell
- !***************************************
+    !***************************************
+    ! Assign neighbour lists to particles by searching shared list of host cell
+    !***************************************
 
- call generate_neighbour_lists(xyzh,vxyzu,npart,dumpfile,.true.)
+    call generate_neighbour_lists(xyzh,vxyzu,npart,dumpfile,.true.)
 
- !**************************************
- ! Output neighbour lists to file
- !**************************************
+    !**************************************
+    ! Output neighbour lists to file
+    !**************************************
 
- neighbourfile = 'neigh_'//TRIM(dumpfile)
- call write_neighbours(neighbourfile, npart)
+!  neighbourfile = 'neigh_'//TRIM(dumpfile)
+!  call write_neighbours(neighbourfile,xyzh,vxyzu,npart)
 
- print*, 'Neighbour finding complete for file ', TRIM(dumpfile)
+!  print*, 'Neighbour finding complete for file ', TRIM(dumpfile)
 
-end subroutine do_analysis
+  end subroutine do_analysis
 !--------------------------------------------------------------------------
 end module analysis

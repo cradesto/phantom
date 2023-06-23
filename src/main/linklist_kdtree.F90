@@ -252,8 +252,13 @@ subroutine get_neighbour_list(inode,mylistneigh,nneigh,xyzh,xyzcache,ixyzcachesi
  endif
 
  ! Find neighbours of this cell on this node
+#ifndef EXPAND_FGRAV_IN_MULTIPOLE
  call getneigh(node,xpos,xsizei,rcuti,3,mylistneigh,nneigh,xyzh,xyzcache,ixyzcachesize,&
               ifirstincell,get_j,get_f,fgrav)
+#else
+ call getneigh(node,xpos,xsizei,rcuti,3,mylistneigh,nneigh,xyzh,xyzcache,ixyzcachesize,&
+              ifirstincell,get_j,get_f,fgrav,inode = inode)
+#endif
 
  if (get_f) f = fgrav + fgrav_global
 

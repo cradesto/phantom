@@ -22,7 +22,7 @@ module analysis
 ! :Dependencies: dim, getneighbours, kernel, part
 !
  use getneighbours,    only:generate_neighbour_lists, read_neighbours, write_neighbours, &
-                           neighcount,neighb,neighmax
+                           sph_neighbours_count,sph_neighbours,neighmax
  implicit none
  character(len=20), parameter, public :: analysistype = 'velocityshear'
 
@@ -186,11 +186,11 @@ subroutine calc_velocitysheartensor(ipart,tensor, xyzh,vxyzu)
 
  real, dimension(3) :: dr
 
- over_neighbours: do k = 1, neighcount(ipart)
+ over_neighbours: do k = 1, sph_neighbours_count(ipart)
 
     if (k>neighmax) exit
 
-    j = neighb(ipart,k)
+    j = sph_neighbours(ipart,k)
 
     if (maxphase==maxp) then
        call get_partinfo(iphase(j),iactivei,iamgasi,iamdusti,iamtypei)

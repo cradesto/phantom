@@ -18,7 +18,7 @@ module analysis
 !   prompting, units
 !
  use getneighbours,    only:generate_neighbour_lists, read_neighbours, write_neighbours, &
-                           neighcount,neighb,neighmax
+                           sph_neighbours_count,sph_neighbours,neighmax
  implicit none
  character(len=20), parameter, public :: analysistype = 'disc_stresses'
  public :: do_analysis, radial_binning, calc_gravitational_forces
@@ -212,10 +212,10 @@ subroutine calc_gravitational_forces(dumpfile,npart,xyzh,vxyzu)
     hj21 = hj1*hj1
     hj41 = hj21*hj21
 
-    over_neighbours: do k = 1, neighcount(ipart)
+    over_neighbours: do k = 1, sph_neighbours_count(ipart)
 
        if (k>neighmax) exit over_neighbours
-       j = neighb(ipart,k)
+       j = sph_neighbours(ipart,k)
 
        if (maxphase==maxp) then
           iamgasi = iamgas(iphase(j))
@@ -622,7 +622,7 @@ subroutine deallocate_arrays
  implicit none
 
  deallocate(gravxyz)
- deallocate(neighcount,neighb)
+ deallocate(sph_neighbours_count,sph_neighbours)
  deallocate(ipartbin,ninbin,rad)
  deallocate(rpart,phipart,vrpart,vphipart)
  deallocate(gr,gphi,Br,Bphi,vrbin,vphibin)

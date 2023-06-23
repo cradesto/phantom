@@ -62,6 +62,9 @@ module evwrite
                           iev_vcomstar1,iev_vcomstar2,&
                           iev_fexti1,iev_fexti2,&
                           iev_fxyz,&
+#ifdef EXPAND_FGRAV_IN_MULTIPOLE
+                          iev_frxyz,&
+#endif
                           iev_macc,iev_eacc,iev_totlum,iev_erot,iev_viscrat,iev_erad,iev_gws
 
  implicit none
@@ -97,6 +100,9 @@ subroutine init_evfile(iunit,evfile,open_file)
  logical,            intent(in) :: open_file
  character(len= 27)             :: ev_fmt
  character(len= 11)             :: dustname
+#ifdef EXPAND_FGRAV_IN_MULTIPOLE
+  character(len= 11)            :: expandname
+#endif
  integer                        :: i,j,k
  integer(kind=8)                :: npartoftypetot(maxtypes)
  !
@@ -137,6 +143,24 @@ subroutine init_evfile(iunit,evfile,open_file)
  call fill_ev_tag(ev_fmt, iev_fxyz(1), 'fx',     's', i,j)
  call fill_ev_tag(ev_fmt, iev_fxyz(2), 'fy',     's', i,j)
  call fill_ev_tag(ev_fmt, iev_fxyz(3), 'fz',     's', i,j)
+
+#ifdef EXPAND_FGRAV_IN_MULTIPOLE
+ do k=1,5
+   write(expandname,'(a,I1,a)') 'fr', k+1, 'x'
+   call fill_ev_tag(ev_fmt, iev_frxyz(k,1), expandname,    's', i,j)
+ enddo
+ call fill_ev_tag(ev_fmt, iev_frxyz(6,1), 'fx_grav',       's', i,j)
+ do k=1,5
+   write(expandname,'(a,I1,a)') 'fr', k+1, 'y'
+   call fill_ev_tag(ev_fmt, iev_frxyz(k,2), expandname,    's', i,j)
+ enddo
+ call fill_ev_tag(ev_fmt, iev_frxyz(6,2), 'fy_grav',       's', i,j)
+ do k=1,5
+   write(expandname,'(a,I1,a)') 'fr', k+1, 'z'
+   call fill_ev_tag(ev_fmt, iev_frxyz(k,3), expandname,    's', i,j)
+ enddo
+ call fill_ev_tag(ev_fmt, iev_frxyz(6,3), 'fz_grav',       's', i,j)
+#endif
 
  if (.not. gas_only) then
     if (npartoftypetot(igas)        > 0) call fill_ev_tag(ev_fmt,iev_rhop(1),'rho gas', 'xa',i,j)

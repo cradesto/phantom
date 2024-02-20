@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------!
 ! The Phantom Smoothed Particle Hydrodynamics code, by Daniel Price et al. !
-! Copyright (c) 2007-2023 The Authors (see AUTHORS)                        !
+! Copyright (c) 2007-2024 The Authors (see AUTHORS)                        !
 ! See LICENCE file for usage and distribution conditions                   !
 ! http://phantomsph.github.io/                                             !
 !--------------------------------------------------------------------------!
@@ -15,19 +15,7 @@ module setstar
 !
 ! :Owner: Daniel Price
 !
-! :Runtime parameters:
-!   - Mstar          : *mass of star*
-!   - Rstar          : *radius of star*
-!   - hsoft          : *Softening length of sink particle stellar core*
-!   - input_profile  : *Path to input profile*
-!   - isinkcore      : *Add a sink particle stellar core*
-!   - isoftcore      : *0=no core softening, 1=cubic core, 2=constant entropy core*
-!   - isofteningopt  : *1=supply rcore, 2=supply mcore, 3=supply both*
-!   - mcore          : *Mass of sink particle stellar core*
-!   - np             : *number of particles*
-!   - outputfilename : *Output path for softened MESA profile*
-!   - rcore          : *Radius of core softening*
-!   - ui_coef        : *specific internal energy (units of GM/R)*
+! :Runtime parameters: None
 !
 ! :Dependencies: centreofmass, dim, eos, extern_densprofile, infile_utils,
 !   io, mpiutils, part, physcon, prompting, radiation_utils, relaxstar,
@@ -425,6 +413,7 @@ subroutine set_defaults_given_profile(iprofile,filename,need_iso,ieos,mstar,poly
  integer, intent(inout) :: ieos
  real,    intent(inout) :: mstar,polyk
 
+ need_iso = 0
  select case(iprofile)
  case(ifromfile)
     ! Read the density profile from file (e.g. for neutron star)

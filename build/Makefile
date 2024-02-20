@@ -1,6 +1,6 @@
 #--------------------------------------------------------------------------!
 # The Phantom Smoothed Particle Hydrodynamics code, by Daniel Price et al. !
-# Copyright (c) 2007-2023 The Authors (see AUTHORS)                        !
+# Copyright (c) 2007-2024 The Authors (see AUTHORS)                        !
 # See LICENCE file for usage and distribution conditions                   !
 # http://users.monash.edu.au/~dprice/phantom                               !
 #--------------------------------------------------------------------------!
@@ -14,14 +14,12 @@
 #   the SETUP variable
 #
 #  OWNER: Daniel Price
-#
-#  $Id: 2788b71b1c08e560e77dce9849c5cb24a668f4b9 $
 #+
 #--------------------------------------------------------------------------
 
 .KEEP_STATE:
 
-PHANTOM_VERSION_MAJOR=2023
+PHANTOM_VERSION_MAJOR=2024
 PHANTOM_VERSION_MINOR=0
 PHANTOM_VERSION_MICRO=0
 VERSION=$(PHANTOM_VERSION_MAJOR).$(PHANTOM_VERSION_MINOR).$(PHANTOM_VERSION_MICRO)
@@ -135,6 +133,7 @@ ifeq ($(MCFOST), yes)
     else
     #--otherwise assume the source code is lying around somewhere
        MCFOST_LIBS = $(MCFOST_INSTALL)/lib/$(FC)
+       HDF5_DIR	= $(MCFOST_LIBS)
        MCFOST_INCLUDE = $(MCFOST_INSTALL)/include
        ifeq ("X$(MCFOST_LIB)","X")
           MCFOST_LIB = $(MCFOST_DIR)/src
@@ -150,7 +149,6 @@ ifeq ($(MCFOST), yes)
     LDFLAGS+= -I$(MCFOST_INCLUDE) -I$(MCFOST_INCLUDE)/voro++ -I$(MCFOST_INCLUDE)/hdf5 -I$(MCFOST_INCLUDE)/$(FC) \
 	-L$(MCFOST_LIB) -lmcfost -L$(MCFOST_LIBS) $(LIBCXX) -lcfitsio -lvoro++ -lsprng \
    -L$(HDF5_DIR) -lhdf5_fortran -lhdf5 -lz #$(LXGBOOST)
-	#-L$(HDF5_DIR)/lib/Intel -lhdf5_fortran
 endif
 
 include Makefile_systems
@@ -242,10 +240,6 @@ endif
 
 ifeq ($(NONIDEALMHD), yes)
     FPPFLAGS += -DNONIDEALMHD
-endif
-
-ifeq ($(H2CHEM), yes)
-    FPPFLAGS += -DH2CHEM
 endif
 
 ifeq ($(DISC_VISCOSITY), yes)
@@ -468,7 +462,8 @@ OBJDIR=obj
 # external forces
 #
 ifeq (X$(SRCPOTS), X)
-SRCPOTS= extern_corotate.f90 \
+SRCPOTS= extern_gr.F90 \
+         extern_corotate.f90 \
          extern_binary.f90 \
          extern_spiral.f90 \
          extern_lensethirring.f90 \
@@ -478,6 +473,7 @@ SRCPOTS= extern_corotate.f90 \
          extern_densprofile.f90 \
          extern_staticsine.f90 \
          extern_gwinspiral.f90 \
+         extern_geopot.f90 \
          externalforces.f90
 endif
 ifeq (X$(SRCPOT), X)
@@ -487,14 +483,15 @@ endif
 # metrics for GR
 #
 ifeq ($(GR),yes)
-    SRCPOT=extern_gr.F90 $(SRCPOTS:externalforces.f90=externalforces_gr.f90)
+    SRCPOT=$(SRCPOTS:externalforces.f90=externalforces_gr.f90)
 endif
+
 ifdef METRIC
     SRCMETRIC= metric_${METRIC}.f90
 else
     SRCMETRIC= metric_minkowski.f90
 endif
-SRCGR=inverse4x4.f90 einsteintk_utils.f90 $(SRCMETRIC) metric_tools.f90 utils_gr.f90 interpolate3D.f90 tmunu2grid.f90 
+SRCGR=inverse4x4.f90 einsteintk_utils.f90 $(SRCMETRIC) metric_tools.f90 utils_gr.f90 interpolate3D.f90 tmunu2grid.f90
 #
 # chemistry and cooling
 #
@@ -570,16 +567,14 @@ ifeq ($(UNAME), Darwin)
 endif
 
 
+ifeq ($(KROME), krome)
 	@echo ""
 	@echo "=============== CHEMISTRY ==============="
 	@echo ""
-ifeq ($(KROME), krome)
 	@echo "krome coupling status = enabled"
-else
-	@echo "krome coupling status = disabled"
-endif
 	@echo ""
 	@echo "========================================="
+endif
 	@sh ../scripts/phantom_version_gen.sh "$(IDFLAGS)"
 	@echo ""
 	@echo "The Phantom is here (in $(BINDIR)/phantom)"
@@ -622,14 +617,14 @@ SRCDUMP= physcon.f90 ${CONFIG} ${SRCKERNEL} utils_omp.F90 io.F90 units.f90 \
          utils_dumpfiles.f90 utils_vectors.f90 utils_mathfunc.f90 \
          utils_datafiles.f90 utils_filenames.f90 utils_system.f90 utils_tables.f90 datafiles.f90 gitinfo.f90 \
          centreofmass.f90 \
-         timestep.f90 ${SRCEOS} cullendehnen.f90 dust_formation.F90 \
+         timestep.f90 ${SRCEOS} cullendehnen.f90 dust_formation.f90 \
          ${SRCGR} ${SRCPOT} \
          memory.F90 \
          utils_sphNG.f90 \
          setup_params.f90 ${SRCFASTMATH} checkoptions.F90 \
          viscosity.f90 damping.f90 options.f90 checkconserved.f90 prompting.f90 ${SRCDUST} \
          ${SRCREADWRITE_DUMPS} \
-         utils_sort.f90 sort_particles.F90
+         utils_sort.f90 sort_particles.f90
 OBJDUMP1= $(SRCDUMP:.f90=.o)
 OBJDUMP= $(OBJDUMP1:.F90=.o)
 
@@ -694,7 +689,7 @@ SRCTESTS=utils_testsuite.f90 ${TEST_FASTMATH} test_kernel.f90 \
          test_derivs.F90 test_cooling.f90 test_eos_stratified.f90 \
          test_eos.f90 test_externf.f90 test_rwdump.f90 \
          test_step.F90 test_indtstep.F90 set_disc.F90 test_setdisc.F90 \
-         test_hierarchical.f90 test_damping.f90 test_wind.f90 \
+         test_hierarchical.f90 test_damping.f90 test_wind.f90 test_iorig.f90 \
          test_link.F90 test_kdtree.F90 test_part.f90 test_ptmass.f90 test_luminosity.F90\
          test_gnewton.f90 test_corotate.f90 test_geometry.f90 \
          ${SRCTESTMPI} test_sedov.F90 test_poly.f90 test_radiation.F90 \
@@ -1003,7 +998,7 @@ phantom2mcfost: checkmcfost
         ANALYSISBIN=$@ ANALYSISONLY=yes LDFLAGS="-L$(MCFOST_DIR)/src -lmcfost $(LIBCXX)"
 
 analysis_mcfost.o: analysis_mcfost.f90
-	$(FC) -c $(FFLAGS) -I$(MCFOST_INCLUDE) $< -o $@
+	$(FC) -c $(FFLAGS) -I$(MCFOST_INCLUDE) -I$(MCFOST_DIR)/src $< -o $@
 
 analysis_mcfost.o: checkmcfost
 
@@ -1327,7 +1322,7 @@ getdims:
 	@echo $(MAXP)
 
 get_setup_opts:
-	@echo "${GR:yes=GR} ${METRIC} ${MHD:yes=MHD} ${NONIDEALMHD:yes=non-ideal} ${DUST:yes=dust} ${GRAVITY:yes=self-gravity} ${RADIATION:yes=radiation}  ${H2CHEM:yes=H2_Chemistry} ${DISC_VISCOSITY:yes=disc_viscosity} ${ISOTHERMAL:yes=isothermal} ${PERIODIC:yes=periodic}" | xargs | sed -e 's/ /, /g' -e 's/_/ /g'
+	@echo "${GR:yes=GR} ${METRIC} ${MHD:yes=MHD} ${NONIDEALMHD:yes=non-ideal} ${DUST:yes=dust} ${GRAVITY:yes=self-gravity} ${RADIATION:yes=radiation} ${DISC_VISCOSITY:yes=disc_viscosity} ${ISOTHERMAL:yes=isothermal} ${PERIODIC:yes=periodic}" | xargs | sed -e 's/ /, /g' -e 's/_/ /g'
 
 get_setup_file:
 	@echo "$(SETUPFILE)"

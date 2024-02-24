@@ -1,0 +1,84 @@
+{
+  // See https://go.microsoft.com/fwlink/?LinkId=733558
+  // for the documentation about the tasks.json format
+  "version": "2.0.0",
+  "linux": {
+    "options": {
+      "env": {
+        "SYSTEM": "gfortran",
+        "OMP_SCHEDULE": "dynamic",
+        "OMP_STACKSIZE": "512M",
+      },
+    },
+  },
+  "osx": {
+    "options": {
+      "env": {
+        "SYSTEM": "gfortranOSX",
+        "OMP_SCHEDULE": "dynamic",
+        "OMP_STACKSIZE": "512M",
+      }
+    },
+  },
+  "command": "ulimit",
+  "args": [
+    "-s",
+    "unlimited"
+  ],
+  "tasks": [
+    {
+      "label": "build",
+      "type": "shell",
+      "command": "make",
+      "args": [
+        "-C",
+        "/home/marat/phys/phantom/phantom_test/test_gw/star_tolv_1e-2_tree_0.5_eos_02_r_10_n_200_stripping/",
+        // "analysis"
+      ],
+      "osx": {
+        "args": [
+          "-C",
+          "/Users/marat/Documents/phys/phantom/phantom_test/m1_1.4Msun_r1_10km_m2_0.5Msun_r2_10km_d_36km",
+          "analysis"
+        ],
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        // Reveal the output only if unrecognized errors occur.
+        // "reveal": "silent"
+      },
+      // Use the standard MS compiler pattern to detect errors, warnings and infos
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "clean",
+      "type": "shell",
+      "command": "make",
+      "args": [
+        "-C",
+        "/home/marat/phys/phantom/phantom_test/test_gw/star_tolv_1e-2_tree_0.5_eos_02_r_10_n_200_stripping/",
+        "clean"
+      ],
+      "osx": {
+        "args": [
+          "-C",
+          "/Users/marat/Documents/phys/phantom/phantom_test/m1_1.4Msun_r1_10km_m2_0.5Msun_r2_10km_d_36km/",
+          "clean"
+        ],
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        // Reveal the output only if unrecognized errors occur.
+        "reveal": "silent"
+      },
+      // Use the standard MS compiler pattern to detect errors, warnings and infos
+      "problemMatcher": "$msCompile"
+    },
+  ]
+}

@@ -282,21 +282,21 @@ contains
 
       ! if(time > time_old(2)) then
 
-        ! Calculate the inertia tensor with omega
-        call get_momentofinertia(xyzh, vxyzu, com, vcom, npart, m_density_cutoff, particlemass,&
-          npartused, inertia, principle, evectors, rmax, omega)
+      ! Calculate the inertia tensor with omega
+      call get_momentofinertia(xyzh, vxyzu, com, vcom, npart, m_density_cutoff, particlemass,&
+        npartused, inertia, principle, evectors, rmax, omega)
 
-        smallIIndex = minloc(principle, dim=1)
-        call correct_evector(evectors(:, smallIIndex), evector_old, time_old(2), time_old(1), omega_old)
-        ! omega = calculate_omega(evectors(:, smallIIndex), evector_old, time_old(2), time_old(1), omega_old)
-        evector_old = evectors(:, smallIIndex)
+      smallIIndex = minloc(principle, dim=1)
+      call correct_evector(evectors(:, smallIIndex), evector_old, time_old(2), time_old(1), omega_old)
+      ! omega = calculate_omega(evectors(:, smallIIndex), evector_old, time_old(2), time_old(1), omega_old)
+      evector_old = evectors(:, smallIIndex)
 
-        time_old(1) = time_old(2)
-        time_old(2) = time
-        omega_old = omega
+      time_old(1) = time_old(2)
+      time_old(2) = time
+      omega_old = omega
 
-        call dquadrupole5(npart, xyzh, omega, particlemass, d5q)
-        fstar_tensor = -2.d0/5.d0*d5q/c_code**5
+      call dquadrupole5(npart, xyzh, omega, particlemass, d5q)
+      fstar_tensor = -2.d0/5.d0*d5q/c_code**5
       ! endif
 
     endif
@@ -346,7 +346,7 @@ contains
     endif
 
     ! if(d1 <= 0.2) then
-      ! write(*,*) 'f1 = ', i, fextxi, fextyi, fextzi
+    ! write(*,*) 'f1 = ', i, fextxi, fextyi, fextzi
     ! endif
 
     ! the new one version of gw drag force
@@ -366,7 +366,7 @@ contains
     endif
 
     ! if(d1 <= 0.2) then
-      ! write(*,*) 'f2 = ', i, fextxi, fextyi, fextzi
+    ! write(*,*) 'f2 = ', i, fextxi, fextyi, fextzi
     ! endif
 
   end subroutine get_gw_force_i

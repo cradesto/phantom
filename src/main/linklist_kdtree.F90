@@ -29,12 +29,18 @@ module linklist
     modid="$Id$"
 
  integer,               allocatable :: cellatid(:)
- integer,     public,   allocatable :: ifirstincell(:)
+ integer,      public,  allocatable :: ifirstincell(:)
  type(kdnode),          allocatable :: nodeglobal(:)
  type(kdnode), public,  allocatable :: node(:)
  integer,               allocatable :: nodemap(:)
- integer,      public ,            allocatable :: listneigh(:)
- integer,      public ,            allocatable :: listneigh_global(:)
+ integer,      public,  allocatable :: listneigh(:)
+ integer,      public,  allocatable :: listneigh_global(:)
+
+#ifdef EXPAND_FGRAV_IN_MULTIPOLE
+ integer,      public,  allocatable :: neighmap(:,:)
+ real,         public,  allocatable :: forcemap(:,:,:)
+#endif
+
 !$omp threadprivate(listneigh)
  integer(kind=8), public :: ncells
  real, public            :: dxcell
@@ -183,9 +189,15 @@ end subroutine set_linklist
 ! the list is returned in 'listneigh' (length nneigh)
 !+
 !-----------------------------------------------------------------------
+#ifndef EXPAND_FGRAV_IN_MULTIPOLE
 subroutine get_neighbour_list(inode,mylistneigh,nneigh,xyzh,xyzcache,ixyzcachesize, &
                               getj,f,remote_export, &
                               cell_xpos,cell_xsizei,cell_rcuti)
+#else
+subroutine get_neighbour_list(inode,mylistneigh,nneigh,xyzh,xyzcache,ixyzcachesize, &
+                              getj,f,remote_export, &
+                              cell_xpos,cell_xsizei,cell_rcuti,getneighmap,getfr5map)
+#endif
  use io,     only:nprocs
  use dim,    only:mpi
  use kdtree, only:getneigh,lenfgrav
@@ -204,6 +216,10 @@ subroutine get_neighbour_list(inode,mylistneigh,nneigh,xyzh,xyzcache,ixyzcachesi
  real,    intent(out), optional :: f(lenfgrav)
  logical, intent(out), optional :: remote_export(:)
  real,    intent(in),  optional :: cell_xpos(3),cell_xsizei,cell_rcuti
+#ifdef EXPAND_FGRAV_IN_MULTIPOLE
+ logical, intent(in),  optional :: getneighmap
+ logical, intent(in),  optional :: getfr5map
+#endif
  real :: xpos(3)
  real :: fgrav(lenfgrav),fgrav_global(lenfgrav)
  real :: xsizei,rcuti
@@ -256,8 +272,16 @@ subroutine get_neighbour_list(inode,mylistneigh,nneigh,xyzh,xyzcache,ixyzcachesi
  call getneigh(node,xpos,xsizei,rcuti,3,mylistneigh,nneigh,xyzh,xyzcache,ixyzcachesize,&
               ifirstincell,get_j,get_f,fgrav)
 #else
- call getneigh(node,xpos,xsizei,rcuti,3,mylistneigh,nneigh,xyzh,xyzcache,ixyzcachesize,&
-              ifirstincell,get_j,get_f,fgrav,inode = inode)
+ if (present(getneighmap)) then
+  call getneigh(node,xpos,xsizei,rcuti,3,mylistneigh,nneigh,xyzh,xyzcache,ixyzcachesize,&
+              ifirstincell,get_j,get_f,fgrav,inode = inode,neighmap = neighmap)
+ else if (present(getfr5map)) then
+  call getneigh(node,xpos,xsizei,rcuti,3,mylistneigh,nneigh,xyzh,xyzcache,ixyzcachesize,&
+              ifirstincell,get_j,get_f,fgrav,inode = inode,forcemap = forcemap)
+ else
+  call getneigh(node,xpos,xsizei,rcuti,3,mylistneigh,nneigh,xyzh,xyzcache,ixyzcachesize,&
+              ifirstincell,get_j,get_f,fgrav)
+ endif
 #endif
 
  if (get_f) f = fgrav + fgrav_global

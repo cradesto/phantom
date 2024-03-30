@@ -220,6 +220,8 @@ contains
 #endif
 #ifdef EXPAND_FGRAV_IN_MULTIPOLE
     use part,         only:frxyz
+    use linklist,     only:node, neighmap, forcemap
+    use allocutils,   only:allocate_array
 #endif
     use mpiderivs,    only:send_cell,recv_cells,check_send_finished,init_cell_exchange,&
       finish_cell_exchange,recv_while_wait,reset_cell_counters
@@ -261,6 +263,10 @@ contains
     real    :: hi,pmassi,rhoi
     logical :: iactivei,iamdusti
     integer :: iamtypei
+#ifdef EXPAND_FGRAV_IN_MULTIPOLE
+    real    :: tol = 1.0e-19
+    integer :: k
+#endif
 #endif
 #ifdef DUST
     real    :: frac_stokes, frac_super
@@ -449,6 +455,24 @@ contains
 
 #ifdef EXPAND_FGRAV_IN_MULTIPOLE
     write(*,'(a,i2,a,i3)') "---- Force ---- number of cells/parts = ", ncells, ", ", npart
+    ! if(.not.allocated(neighmap)) then
+    !   call allocate_array('neighmap', neighmap, int(ncells), int(ncells))
+    ! else
+    !   if(size(neighmap,dim = 1) < ncells) then
+    !     deallocate(neighmap)
+    !     call allocate_array('neighmap', neighmap, int(ncells), int(ncells))
+    !   endif
+    ! endif
+    ! neighmap = 0
+    if(.not.allocated(forcemap)) then
+      call allocate_array('forcemap', forcemap, 38+15, int(ncells), int(ncells))
+    else
+      if(size(forcemap,dim = 1) < ncells) then
+        deallocate(forcemap)
+        call allocate_array('forcemap', forcemap, 38+15, int(ncells), int(ncells))
+      endif
+    endif
+    forcemap = 0.0
 #endif
 
     !$omp do schedule(runtime)
@@ -456,14 +480,15 @@ contains
       i = ifirstincell(icell)
 
       !--skip empty cells AND inactive cells
-#ifndef EXPAND_FGRAV_IN_MULTIPOLE
+! #ifndef EXPAND_FGRAV_IN_MULTIPOLE
       if (i <= 0) cycle over_cells
-#else
-      if (i <= 0) then
-        write(*,'(i2,a,i2,a,a)') icell, " (", cell%npcell, ") = ", " i <= 0"
-        cycle over_cells
-      endif
-#endif
+! #else
+!       if (i <= 0) then
+!         write(*,'(i2,a,i2,a,i2,a,i3,a,a)') icell, "|", node(icell)%leftchild, ", ", node(icell)%rightchild,&
+!           " (", inoderange(2,icell) - inoderange(1,icell) + 1, ") = ", " not leaf"
+!         cycle over_cells
+!       endif
+! #endif
 
       cell%icell = icell
 
@@ -484,8 +509,15 @@ contains
       !--get the neighbour list and fill the cell cache
       !
 
+#ifndef EXPAND_FGRAV_IN_MULTIPOLE
       call get_neighbour_list(icell,listneigh,nneigh,xyzh,xyzcache,maxcellcache, &
         getj=.true.,f=cell%fgrav,remote_export=remote_export)
+#else
+      ! call get_neighbour_list(icell,listneigh,nneigh,xyzh,xyzcache,maxcellcache, &
+        ! getj=.true.,f=cell%fgrav,remote_export=remote_export,getneighmap=.true.)
+      call get_neighbour_list(icell,listneigh,nneigh,xyzh,xyzcache,maxcellcache, &
+        getj=.true.,f=cell%fgrav,remote_export=remote_export,getfr5map=.true.)
+#endif
 
       cell%owner                   = id
 
@@ -541,9 +573,91 @@ contains
         ! write(*,*) 'over_cells = ', frxyz(6,1,i), sum(frxyz(1:5,1,i))
       ! endif
     ! enddo
-    if(abs(sum(frxyz(1,1,:))) > 1.0e-17) then
-      write(*,*) 'sum f_i (1/r^2) = ', sum(frxyz(1,1,:))
-    endif
+    ! if(abs(sum(frxyz(1,1,:))) > 1.0e-17) then
+      hi = minval(xyzh(4,:))
+      pmassi = massoftype(igas)
+      write(*,*) 'epsilon = ', epsilon(1.),&
+        maxval(abs(frxyz(1,:,:))),&
+        maxval(abs(frxyz(2,:,:))),&
+        maxval(abs(frxyz(3,:,:))),&
+        maxval(abs(frxyz(4,:,:)))
+      write(*,*) 'f_r_5 = ', ncells*(ncells-1)*24*pmassi*pmassi/hi**2
+      write(*,*) 'np, nc, m, h, f_max = ',&
+        npart,&
+        ncells,&
+        pmassi,&
+        hi,&
+        10*pmassi*pmassi/(2.0*hi)**2,&
+        epsilon(frxyz(1,1,1))*((npart*(ncells-1))-1)*(npart*(ncells-1))*10*pmassi*pmassi/((2.0*hi)**2),&
+        8.66*&! sqrt(2.*log(2/1e-16))
+          sqrt((1./6)*(npart*(ncells-1)*(npart*(ncells-1)+1)*(2*npart*(ncells-1)-1)))*&
+          epsilon(frxyz(1,1,1))*(10*pmassi*pmassi/(2.0*hi)**2),&
+        epsilon(frxyz(1,1,1))*8.66*&! sqrt(2.*log(2/1e-16))
+          sqrt((1./6)*(npart*(ncells-1)*(npart*(ncells-1)+1)*(2*npart*(ncells-1)-1))-1)*&
+          (10*pmassi*pmassi/(2.0*hi)**2)
+      write(*,*) 'sum f_i (1/r^2) = ', sum(frxyz(1,1,:)),&
+        epsilon(frxyz(1,1,1))*(npart-1)*sum(abs(frxyz(1,1,:))),&
+        epsilon(frxyz(1,1,1))*(npart-1)*sum(abs(frxyz(1,2,:))),&
+        epsilon(frxyz(1,1,1))*(npart-1)*sum(abs(frxyz(1,3,:)))
+      write(*,*) 'sum f_i (1/r^3) = ', sum(frxyz(2,1,:)),&
+        epsilon(frxyz(1,1,1))*(npart-1)*sum(abs(frxyz(2,1,:))),&
+        epsilon(frxyz(1,1,1))*(npart-1)*sum(abs(frxyz(2,2,:))),&
+        epsilon(frxyz(1,1,1))*(npart-1)*sum(abs(frxyz(2,3,:)))
+      write(*,*) 'sum f_i (1/r^4) = ', sum(frxyz(3,1,:)),&
+        epsilon(frxyz(1,1,1))*(npart-1)*sum(abs(frxyz(3,1,:))),&
+        epsilon(frxyz(1,1,1))*(npart-1)*sum(abs(frxyz(3,2,:))),&
+        epsilon(frxyz(1,1,1))*(npart-1)*sum(abs(frxyz(3,3,:)))
+      write(*,*) 'sum f_i (1/r^5) = ', sum(frxyz(4,1,:)),&
+        epsilon(frxyz(1,1,1))*(npart-1)*sum(abs(frxyz(4,1,:))),&
+        epsilon(frxyz(1,1,1))*(npart-1)*sum(abs(frxyz(4,2,:))),&
+        epsilon(frxyz(1,1,1))*(npart-1)*sum(abs(frxyz(4,3,:)))
+    ! endif
+
+    ! do i = 0, ncells
+    !   write(*,'(i3)', advance='no') i
+    ! enddo
+    ! write(*,'()')
+    ! do i = 1, ncells
+    !   write(*,'(1000i3)') i, neighmap(i, 1:ncells)
+    ! end do
+    ! neighmap = abs(transpose(neighmap) - neighmap)
+    ! do j = 1, ncells
+    !   do i = 1, ncells
+    !     if(neighmap(i,j) /= 0) then
+    !       write(*,*) 'transpose(neighmap) != neighmap', i, j
+    !     endif
+    !   end do
+    ! end do
+    ! if(any(neighmap > 0)) then
+    !   write(*,*) 'transpose(neighmap) != neighmap'
+    !   stop
+    ! endif
+
+    ! k = 38 + 1
+    ! write(*,'(i3)', advance='no') 0
+    ! do i = 1, ncells
+      ! write(*,'(i13)', advance='no') i
+    ! enddo
+    ! write(*,'()')
+    ! do i = 1, ncells
+      ! write(*,'(i3,1000es13.6)') i, forcemap(k, i, 1:ncells)
+    ! end do
+    ! forcemap(k,:,:) = abs(transpose(forcemap(k, 1:ncells, 1:ncells)) + forcemap(k, 1:ncells, 1:ncells))
+    ! do j = 1, ncells
+    !   do i = 1, ncells
+    !     if(forcemap(k,i,j) >= tol) then
+    !       write(*,*) 'transpose(forcemap) != forcemap', i, j, forcemap(k,i,j)
+    !     endif
+    !   end do
+    ! end do
+    do k = 38 + 1, 38 + 15
+      ! if(any(abs(transpose(forcemap(k, 1:ncells, 1:ncells)) + forcemap(k, 1:ncells, 1:ncells))&
+      !     >= epsilon(tol))) then
+      !   write(*,*) 'transpose(forcemap) != forcemap', k
+      !   stop
+      ! endif
+      write(*,*) k - 38, maxval(abs(transpose(forcemap(k, 1:ncells, 1:ncells)) + forcemap(k, 1:ncells, 1:ncells)))
+    enddo
 #endif
 
     !$omp barrier
@@ -2516,6 +2630,7 @@ contains
 #endif
 #ifdef EXPAND_FGRAV_IN_MULTIPOLE
     use part,           only:frxyz
+    use linklist,       only:forcemap
 #endif
 
     integer,            intent(in)    :: icall
@@ -2724,7 +2839,7 @@ contains
 #ifndef EXPAND_FGRAV_IN_MULTIPOLE
       call expand_fgrav_in_taylor_series(cell%fgrav,dx,dy,dz,fxi,fyi,fzi,poti)
 #else
-      call expand_fgrav_in_taylor_series(cell%fgrav,dx,dy,dz,fxi,fyi,fzi,frxi,fryi,frzi,poti)
+      call expand_fgrav_in_taylor_series(cell%fgrav,dx,dy,dz,fxi,fyi,fzi,frxi,fryi,frzi,poti,cell%icell,forcemap)
 #endif
       ! write(*,*) 'expand_fgrav_in_taylor_series = ', i, fxi, sum(frxi(:))
       fsum(ifxi) = fsum(ifxi) + fxi

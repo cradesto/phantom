@@ -220,6 +220,8 @@ subroutine setpart(id,npart,npartoftype,xyzh,massoftype,vxyzu,polyk,gamma,hfact,
  ! get the desired tables of density, pressure, temperature and composition
  ! as a function of radius / mass fraction
  !
+!  Rstar       = 6.959500d6
+
  call read_star_profile(iprofile,ieos,input_profile,gamma,polyk,ui_coef,r,den,pres,temp,en,mtab,&
                         Xfrac,Yfrac,mu,npts,rmin,Rstar,Mstar,rhocentre,&
                         isoftcore,isofteningopt,rcore,hsoft,outputfilename)

@@ -85,6 +85,18 @@ subroutine rho_polytrope(gamma,polyk,Mstar,rtab,rhotab,npts,rhocentre,set_polyk,
  v(2) = dr*(1.0 - dr*dr/6. )
  r(1) = 0.
 
+ ! http://www.astronet.ru/db/msg/1169513/node14.html
+ ! r(i) -> \xi
+ ! (v(i)/r(i)) -> \Theta
+ ! The Lane-Emden equation
+ ! \frac{d^2v}{d\xi^2} = - \left(\frac{v}{\xi}\right)^n \xi
+ ! den(j) = (v(j)/r(j))**an -> \Theta^n = \left(\frac{\rho}{\rho_c}\right)
+ ! Mstar_f -> 4 \pi \mu_1
+ ! rhocentre0 -> rho_c
+ ! rfac -> \alpha
+ ! rtab -> R
+ ! rhotab -> \rho
+
  i = 2
  do while (v(i) >= 0.)
     r(i)    = (i-1)*dr
@@ -120,8 +132,10 @@ subroutine rho_polytrope(gamma,polyk,Mstar,rtab,rhotab,npts,rhocentre,set_polyk,
  if (present(set_polyk) .and. present(Rstar) ) then
     if ( set_polyk ) then
        !--Rescale radius to get polyk
-       rfac      = Rstar/(r(npts)*rfac)
-       polyk     = polyk*rfac
+       ! rfac      = Rstar/(r(npts)*rfac)
+       ! polyk     = polyk*rfac
+       polyk      = (Rstar/(r(npts)))**(3.*gamma - 4.)*(Mstar/Mstar_f)**(2. - gamma)*&
+         (fourpi*(gamma - 1.)/gamma)
        !
        !--Re-rescale central density to give desired mass (using the correct polyk)
        fac        = (gamma*polyk)/(fourpi*(gamma - 1.))

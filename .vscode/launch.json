@@ -9,10 +9,10 @@
       "type": "cppdbg",
       "request": "launch",
       "targetArchitecture": "x86_64",
-      "program": "/home/marat/phys/phantom/phantom_test/test_gw/star_tolv_1e-2_tree_0.5_eos_02_r_10_n_200_stripping/phantomsetup",
-      "args": [
-        "star_m1.in"
-      ],
+      // "program": "/home/marat/phys/phantom/phantom_test/test_gw/star_tolv_1e-2_tree_0.5_eos_02_r_10_n_200_stripping/phantomsetup",
+      // "args": [
+      //   "star_m1.in"
+      // ],
       // "program": "/home/marat/phys/phantom/phantom_test/test_gw/m1_1.0Msun_r1_10km_m2_1.0Msun_r2_10km_d_100km_idealpluspoly/phantommoddump",
       // "args": [
       //   "star_m1_00100",
@@ -24,10 +24,10 @@
       //   // "binary.in"
       //   "star_m1_00990"
       // ],
-      // "program": "/home/marat/phys/phantom/phantom_test/test_gw/star_tolv_1e-2_tree_0.5_eos_02_r_10_n_200_stripping/phantom",
-      // "args": [
-      //   "star_m1.in"
-      // ],
+      "program": "/home/marat/phys/phantom/phantom_test/com_master/phantom",
+      "args": [
+        "/home/marat/phys/phantom/phantom_test/com_master/star.in"
+      ],
       // "program": "/home/marat/phys/phantom/phantom_test/test_gw/poly/phantom2hdf5",
       // "args": [
       //   "binary_00000"

@@ -349,9 +349,9 @@ subroutine compute_energies(t)
       !  write(*,*) 'ene = ', i, frxyz(6,1,i), sum(frxyz(1:5,1,i))
 
        do j=1,6
-         call ev_data_update(ev_data_thread,iev_frxyz(j,1),sum(frxyz(j,1,:,i)))
-         call ev_data_update(ev_data_thread,iev_frxyz(j,2),sum(frxyz(j,2,:,i)))
-         call ev_data_update(ev_data_thread,iev_frxyz(j,3),sum(frxyz(j,3,:,i)))
+         call ev_data_update(ev_data_thread,iev_frxyz(j,1),sum(frxyz(j,1,i)))
+         call ev_data_update(ev_data_thread,iev_frxyz(j,2),sum(frxyz(j,2,i)))
+         call ev_data_update(ev_data_thread,iev_frxyz(j,3),sum(frxyz(j,3,i)))
        enddo
 #endif
 

@@ -176,7 +176,7 @@ subroutine derivs(icall,npart,nactive,xyzh,vxyzu,fxyzu,fext,divcurlv,divcurlB,&
  if (sinks_have_heating(nptmass,xyzmh_ptmass)) call ptmass_calc_enclosed_mass(nptmass,npart,xyzh)
  call force(icall,npart,xyzh,vxyzu,fxyzu,divcurlv,divcurlB,Bevol,dBevol,&
             rad,drad,radprop,dustprop,dustgasprop,dustfrac,ddustevol,&
-            ipart_rhomax,dt,stressmax,eos_vars,dens,metrics)
+            ipart_rhomax,dt,stressmax,eos_vars,dens,metrics,time)
  call do_timing('force',tlast,tcpulast)
 
  if (use_dustgrowth) then ! compute growth rate of dust particles

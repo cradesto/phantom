@@ -478,7 +478,7 @@ subroutine allocate_part
  call allocate_array('fxyzu', fxyzu, maxvxyzu, maxan)
  fxyzu = 0
 #ifdef EXPAND_FGRAV_IN_MULTIPOLE
- call allocate_array('frxyz', frxyz, 6, 3, maxan) ! 1:5 - expansion of 1/r^2-1/^r6, 6 - sum for grav
+ call allocate_array('frxyz', frxyz, 6, 3, maxan) ! 1,..,5 - expansion of 1/r^2,..,1/^r6, 6 - sum for grav
  frxyz = 0
 #endif
  call allocate_array('dBevol', dBevol, maxBevol, maxmhdan)

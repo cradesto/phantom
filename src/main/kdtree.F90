@@ -58,9 +58,9 @@ module kdtree
  public :: compute_fnode, expand_fgrav_in_taylor_series
 
 #ifndef EXPAND_FGRAV_IN_MULTIPOLE
-  integer, parameter, public :: lenfgrav = 20
+ integer, parameter, public :: lenfgrav = 20
 #else
-  integer, parameter, public :: lenfgrav = 58
+ integer, parameter, public :: lenfgrav = 58
 #endif
 
  integer, public :: maxlevel_indexed, maxlevel
@@ -905,10 +905,10 @@ end subroutine sort_particles_in_cell
 !----------------------------------------------------------------
 #ifndef EXPAND_FGRAV_IN_MULTIPOLE
 subroutine getneigh(node,xpos,xsizei,rcuti,ndim,listneigh,nneigh,xyzh,xyzcache,ixyzcachesize,ifirstincell,&
-  & get_hj,get_f,fnode,remote_export)
+& get_hj,get_f,fnode,remote_export)
 #else
 subroutine getneigh(node,xpos,xsizei,rcuti,ndim,listneigh,nneigh,xyzh,xyzcache,ixyzcachesize,ifirstincell,&
-  & get_hj,get_f,fnode,remote_export,inode,neighmap,forcemap)
+& get_hj,get_f,fnode,remote_export,inode,neighmap,forcemap)
  use part, only:igas,massoftype
 #endif
 #ifdef PERIODIC
@@ -982,19 +982,21 @@ subroutine getneigh(node,xpos,xsizei,rcuti,ndim,listneigh,nneigh,xyzh,xyzcache,i
  nstack(istack) = irootnode
  open_tree_node = .false.
 
-! #ifdef GRAVITY
-! #ifdef EXPAND_FGRAV_IN_MULTIPOLE
-!   if (present(inode)) then
-!     pmassi = massoftype(igas)
-!     if(inode > 0) then
-!       npnode = inoderange(2,inode) - inoderange(1,inode) + 1
-!       write(*,'(i2,a,i3,a)', advance="no") inode, " (", npnode, ") = "
-!     else
-!       write(*,'(i2,a)', advance="no") inode, " ( 0) = "
-!     endif
-!   endif
-! #endif
-! #endif
+#ifdef GRAVITY
+#ifdef EXPAND_FGRAV_IN_MULTIPOLE
+!  if (present(inode)) then
+    ! pmassi = massoftype(igas)
+    ! if(inode > 0) then
+    !    npnode = inoderange(2,inode) - inoderange(1,inode) + 1
+    !    write(*,'(i0,a,i0,a,es13.6,a)', advance="no") &
+    !     inode, " (", npnode, ", ", &
+    !     xsizei, ") = "
+    ! else
+    !    write(*,'(i0,a)', advance="no") inode, " ( 0) = "
+    ! endif
+!  endif
+#endif
+#endif
 
  over_stack: do while(istack /= 0)
     n = nstack(istack)
@@ -1035,7 +1037,9 @@ subroutine getneigh(node,xpos,xsizei,rcuti,ndim,listneigh,nneigh,xyzh,xyzcache,i
     endif
     rcut2 = (xsizei + xsizej + rcut)**2   ! node size + search radius
 #ifdef GRAVITY
-    open_tree_node = tree_acc2*r2 < xsizej*xsizej    ! tree opening criterion for self-gravity
+    ! MARK: TREE OPENING CRITERION
+    ! for self-gravity
+    open_tree_node = tree_acc2*r2 < xsizej*xsizej
 #endif
     if_open_node: if ((r2 < rcut2) .or. open_tree_node) then
        if_leaf: if (ifirstincell(n) /= 0) then ! once we hit a leaf node, retrieve contents into trial neighbour cache
@@ -1092,9 +1096,9 @@ subroutine getneigh(node,xpos,xsizei,rcuti,ndim,listneigh,nneigh,xyzh,xyzcache,i
           endif if_global_walk
 #ifdef EXPAND_FGRAV_IN_MULTIPOLE
           if (present(inode)) then
-            ! write(*,'(i2,a,i3,a,i2,a)', advance="no") n, "-(", npnode, ", ", ifirstincell(n), "), "
-            if (present(neighmap))&
-              neighmap(inode,n) = -1
+              ! write(*,'(i0,a,i0,a,es13.6,a)', advance="no") n, "+(", npnode, ", ", sqrt(r2), "), "
+             if (present(neighmap))&
+              neighmap(inode,n) = 1
           endif
 #endif
        else
@@ -1137,29 +1141,29 @@ subroutine getneigh(node,xpos,xsizei,rcuti,ndim,listneigh,nneigh,xyzh,xyzcache,i
           dr = 1./sqrt(r2)
 #endif
 #ifdef EXPAND_FGRAV_IN_MULTIPOLE
-          if_leaf_count_gravity: if (ifirstincell(n) /= 0) then ! once we hit a leaf node, retrieve contents into trial neighbour cache
-            if (present(inode)) then
-              ! npnode = inoderange(2,n) - inoderange(1,n) + 1
-              ! write(*,'(i2,a,i3,a,i2,a)', advance="no") n, "+(", npnode, ", ", ifirstincell(n), "), "
-              if (present(neighmap))&
-                neighmap(inode,n) = 1
-            endif
-            call compute_fnode(dx,dy,dz,dr,totmass_node,quads,fnode,dfnode)
-            if (present(inode)) then
-              if (present(forcemap))&
+          !  if_leaf_count_gravity: if (ifirstincell(n) /= 0) then ! once we hit a leaf node, retrieve contents into trial neighbour cache
+          if (present(inode)) then
+            !  npnode = inoderange(2,n) - inoderange(1,n) + 1
+              ! write(*,'(i0,a,i0,a,es13.6,a)', advance="no") n, "-(", npnode, ", ", sqrt(r2), "), "
+             if (present(neighmap))&
+                neighmap(inode,n) = -1
+          endif
+          call compute_fnode(dx,dy,dz,dr,totmass_node,quads,fnode,dfnode)
+          if (present(inode)) then
+             if (present(forcemap))&
                 forcemap(1:38,inode,n) = dfnode
-            endif
-          else
-            if (istack+2 > istacksize) call fatal('getneigh','stack overflow in getneigh')
-            if (il /= 0) then
-               istack = istack + 1
-               nstack(istack) = il
-            endif
-            if (ir /= 0) then
-               istack = istack + 1
-               nstack(istack) = ir
-            endif
-          endif if_leaf_count_gravity
+          endif
+          !  else
+          !    if (istack+2 > istacksize) call fatal('getneigh','stack overflow in getneigh')
+          !    if (il /= 0) then
+          !       istack = istack + 1
+          !       nstack(istack) = il
+          !    endif
+          !    if (ir /= 0) then
+          !       istack = istack + 1
+          !       nstack(istack) = ir
+          !    endif
+          !  endif if_leaf_count_gravity
 #else
           call compute_fnode(dx,dy,dz,dr,totmass_node,quads,fnode)
 #endif
@@ -1170,11 +1174,11 @@ subroutine getneigh(node,xpos,xsizei,rcuti,ndim,listneigh,nneigh,xyzh,xyzcache,i
     endif if_open_node
  enddo over_stack
 
-! #ifdef EXPAND_FGRAV_IN_MULTIPOLE
-!   if (present(inode)) then
-!     write(*,'()')
-!   endif
-! #endif
+#ifdef EXPAND_FGRAV_IN_MULTIPOLE
+!  if (present(inode)) then
+    ! write(*,'()')
+!  endif
+#endif
 
 end subroutine getneigh
 
@@ -1194,9 +1198,9 @@ pure subroutine compute_fnode(dx,dy,dz,dr,totmass,quads,fnode,dfnode)
  real, intent(in)    :: quads(6)
  real, intent(inout) :: fnode(lenfgrav)
 #ifdef EXPAND_FGRAV_IN_MULTIPOLE
- real, intent(inout) :: dfnode(38)
+ real, intent(out) :: dfnode(38)
 #endif
-real :: dr2,dr3,dr4,dr5,dr6,dr2m,dr3m,rx,ry,rz,qxx,qxy,qxz,qyy,qyz,qzz
+ real :: dr2,dr3,dr4,dr5,dr6,dr2m,dr3m,rx,ry,rz,qxx,qxy,qxz,qyy,qyz,qzz
  real :: dr4m3,rijQij,riQix,riQiy,riQiz,fqx,fqy,fqz
  real :: dfxdxq,dfxdyq,dfxdzq,dfydyq,dfydzq,dfzdzq
  real :: d2fxxxq,d2fxxyq,d2fxxzq,d2fxyyq,d2fxyzq
@@ -1386,7 +1390,7 @@ pure subroutine expand_fgrav_in_taylor_series(fnode,dx,dy,dz,fxi,fyi,fzi,frxi,fr
 #ifdef EXPAND_FGRAV_IN_MULTIPOLE
  real, intent(out) :: frxi(5),fryi(5),frzi(5)
  integer, intent(in) :: inode
- real, intent(inout) :: forcemap(:,:,:)
+ real, intent(inout), optional :: forcemap(:,:,:)
  real :: fxi2,fyi2,fzi2
 !  real :: tol = 1.0e-19
 #endif
@@ -1431,9 +1435,6 @@ pure subroutine expand_fgrav_in_taylor_series(fnode,dx,dy,dz,fxi,fyi,fzi,frxi,fr
  fryi(1) = fnode(22)
  frzi(1) = fnode(23)
 
- forcemap(38+1,inode,:) = forcemap(38+1,inode,:) + forcemap(1,inode,:)
- forcemap(38+2,inode,:) = forcemap(38+2,inode,:) + forcemap(2,inode,:)
- forcemap(38+3,inode,:) = forcemap(38+3,inode,:) + forcemap(3,inode,:)
 ! 1/r^3
  dfxx = fnode(24)
  dfxy = fnode(25) ! = dfyx
@@ -1445,12 +1446,6 @@ pure subroutine expand_fgrav_in_taylor_series(fnode,dx,dy,dz,fxi,fyi,fzi,frxi,fr
  fryi(2) = dx*dfxy + dy*dfyy + dz*dfyz
  frzi(2) = dx*dfxz + dy*dfyz + dz*dfzz
 
- forcemap(38+4,inode,:) = forcemap(38+4,inode,:)&
-   + dx*forcemap(4,inode,:) + dy*forcemap(5,inode,:) + dz*forcemap(6,inode,:)
- forcemap(38+5,inode,:) = forcemap(38+5,inode,:)&
-   + dx*forcemap(5,inode,:) + dy*forcemap(7,inode,:) + dz*forcemap(8,inode,:)
- forcemap(38+6,inode,:) = forcemap(38+6,inode,:)&
-   + dx*forcemap(6,inode,:) + dy*forcemap(8,inode,:) + dz*forcemap(9,inode,:)
 ! 1/r^4
  fxi2 = fnode(30)
  fyi2 = fnode(31)
@@ -1475,21 +1470,6 @@ pure subroutine expand_fgrav_in_taylor_series(fnode,dx,dy,dz,fxi,fyi,fzi,frxi,fr
                + dy*(0.5*(dx*d2fxyz + dy*d2fyyz + dz*d2fyzz)) &
                + dz*(0.5*(dx*d2fxzz + dy*d2fyzz + dz*d2fzzz))
 
- forcemap(38+7,inode,:) = forcemap(38+7,inode,:)&
-               + forcemap(10,inode,:)&
-               + dx*(0.5*(dx*forcemap(13,inode,:) + dy*forcemap(14,inode,:) + dz*forcemap(15,inode,:))) &
-               + dy*(0.5*(dx*forcemap(14,inode,:) + dy*forcemap(16,inode,:) + dz*forcemap(17,inode,:))) &
-               + dz*(0.5*(dx*forcemap(15,inode,:) + dy*forcemap(17,inode,:) + dz*forcemap(18,inode,:)))
- forcemap(38+8,inode,:) = forcemap(38+8,inode,:)&
-               + forcemap(11,inode,:)&
-               + dx*(0.5*(dx*forcemap(14,inode,:) + dy*forcemap(16,inode,:) + dz*forcemap(17,inode,:))) &
-               + dy*(0.5*(dx*forcemap(16,inode,:) + dy*forcemap(19,inode,:) + dz*forcemap(20,inode,:))) &
-               + dz*(0.5*(dx*forcemap(17,inode,:) + dy*forcemap(20,inode,:) + dz*forcemap(21,inode,:)))
- forcemap(38+9,inode,:) = forcemap(38+9,inode,:)&
-               + forcemap(12,inode,:)&
-               + dx*(0.5*(dx*forcemap(15,inode,:) + dy*forcemap(17,inode,:) + dz*forcemap(18,inode,:))) &
-               + dy*(0.5*(dx*forcemap(17,inode,:) + dy*forcemap(20,inode,:) + dz*forcemap(21,inode,:))) &
-               + dz*(0.5*(dx*forcemap(18,inode,:) + dy*forcemap(21,inode,:) + dz*forcemap(22,inode,:)))
 ! 1/r^5
  dfxx = fnode(43)
  dfxy = fnode(44) ! = dfyx
@@ -1501,12 +1481,6 @@ pure subroutine expand_fgrav_in_taylor_series(fnode,dx,dy,dz,fxi,fyi,fzi,frxi,fr
  fryi(4) = dx*dfxy + dy*dfyy + dz*dfyz
  frzi(4) = dx*dfxz + dy*dfyz + dz*dfzz
 
- forcemap(38+10,inode,:) = forcemap(38+10,inode,:)&
-   + dx*forcemap(23,inode,:) + dy*forcemap(24,inode,:) + dz*forcemap(25,inode,:)
- forcemap(38+11,inode,:) = forcemap(38+11,inode,:)&
-   + dx*forcemap(24,inode,:) + dy*forcemap(26,inode,:) + dz*forcemap(27,inode,:)
- forcemap(38+12,inode,:) = forcemap(38+12,inode,:)&
-   + dx*forcemap(25,inode,:) + dy*forcemap(27,inode,:) + dz*forcemap(28,inode,:)
  ! 1/r^6
  d2fxxx = fnode(49)
  d2fxxy = fnode(50) ! = d2fxyx = d2fyxx
@@ -1528,97 +1502,77 @@ pure subroutine expand_fgrav_in_taylor_series(fnode,dx,dy,dz,fxi,fyi,fzi,frxi,fr
          + dy*(0.5*(dx*d2fxyz + dy*d2fyyz + dz*d2fyzz)) &
          + dz*(0.5*(dx*d2fxzz + dy*d2fyzz + dz*d2fzzz))
 
- forcemap(38+13,inode,:) = forcemap(38+13,inode,:)&
-         + dx*(0.5*(dx*forcemap(29,inode,:) + dy*forcemap(30,inode,:) + dz*forcemap(31,inode,:))) &
-         + dy*(0.5*(dx*forcemap(30,inode,:) + dy*forcemap(32,inode,:) + dz*forcemap(33,inode,:))) &
-         + dz*(0.5*(dx*forcemap(31,inode,:) + dy*forcemap(33,inode,:) + dz*forcemap(34,inode,:)))
- forcemap(38+14,inode,:) = forcemap(38+14,inode,:)&
-         + dx*(0.5*(dx*forcemap(30,inode,:) + dy*forcemap(32,inode,:) + dz*forcemap(33,inode,:))) &
-         + dy*(0.5*(dx*forcemap(32,inode,:) + dy*forcemap(35,inode,:) + dz*forcemap(36,inode,:))) &
-         + dz*(0.5*(dx*forcemap(33,inode,:) + dy*forcemap(36,inode,:) + dz*forcemap(37,inode,:)))
- forcemap(38+15,inode,:) = forcemap(38+15,inode,:)&
-         + dx*(0.5*(dx*forcemap(31,inode,:) + dy*forcemap(33,inode,:) + dz*forcemap(34,inode,:))) &
-         + dy*(0.5*(dx*forcemap(33,inode,:) + dy*forcemap(36,inode,:) + dz*forcemap(37,inode,:))) &
-         + dz*(0.5*(dx*forcemap(34,inode,:) + dy*forcemap(37,inode,:) + dz*forcemap(38,inode,:)))
+ if(present(forcemap)) then
+  ! 1/r^2
+  forcemap(38+1,inode,:) = forcemap(38+1,inode,:) + forcemap(1,inode,:)
+  forcemap(38+2,inode,:) = forcemap(38+2,inode,:) + forcemap(2,inode,:)
+  forcemap(38+3,inode,:) = forcemap(38+3,inode,:) + forcemap(3,inode,:)
 
-!  fxi2 = (fnode(21) + fnode(30))
-!  fyi2 = (fnode(22) + fnode(31))
-!  fzi2 = (fnode(23) + fnode(32))
-!  dfxx = (fnode(24) + fnode(43))
-!  dfxy = (fnode(25) + fnode(44))
-!  dfxz = (fnode(26) + fnode(45))
-!  dfyy = (fnode(27) + fnode(46))
-!  dfyz = (fnode(28) + fnode(47))
-!  dfzz = (fnode(29) + fnode(48))
-!  d2fxxx = (fnode(33) + fnode(49))
-!  d2fxxy = (fnode(34) + fnode(50))
-!  d2fxxz = (fnode(35) + fnode(51))
-!  d2fxyy = (fnode(36) + fnode(52))
-!  d2fxyz = (fnode(37) + fnode(53))
-!  d2fxzz = (fnode(38) + fnode(54))
-!  d2fyyy = (fnode(39) + fnode(55))
-!  d2fyyz = (fnode(40) + fnode(56))
-!  d2fyzz = (fnode(41) + fnode(57))
-!  d2fzzz = (fnode(42) + fnode(58))
+  ! 1/r^3
+  forcemap(38+4,inode,:) = forcemap(38+4,inode,:)&
+    + dx*forcemap(4,inode,:) + dy*forcemap(5,inode,:) + dz*forcemap(6,inode,:)
+  forcemap(38+5,inode,:) = forcemap(38+5,inode,:)&
+    + dx*forcemap(5,inode,:) + dy*forcemap(7,inode,:) + dz*forcemap(8,inode,:)
+  forcemap(38+6,inode,:) = forcemap(38+6,inode,:)&
+    + dx*forcemap(6,inode,:) + dy*forcemap(8,inode,:) + dz*forcemap(9,inode,:)
 
-!  if(abs(fnode(1) - fxi2) > tol)&
-!    write(*,*) 'fxi2 = ', fnode(1) - fxi2
-!  if(abs(fnode(2) - fyi2) > tol)&
-!    write(*,*) 'fyi2 = ', fnode(2) - fyi2
-!  if(abs(fnode(3) - fzi2) > tol)&
-!    write(*,*) 'fzi2 = ', fnode(3) - fzi2
+  ! 1/r^4
+  forcemap(38+7,inode,:) = forcemap(38+7,inode,:)&
+              + forcemap(10,inode,:)&
+              + dx*(0.5*(dx*forcemap(13,inode,:) + dy*forcemap(14,inode,:) + dz*forcemap(15,inode,:))) &
+              + dy*(0.5*(dx*forcemap(14,inode,:) + dy*forcemap(16,inode,:) + dz*forcemap(17,inode,:))) &
+              + dz*(0.5*(dx*forcemap(15,inode,:) + dy*forcemap(17,inode,:) + dz*forcemap(18,inode,:)))
+  forcemap(38+8,inode,:) = forcemap(38+8,inode,:)&
+              + forcemap(11,inode,:)&
+              + dx*(0.5*(dx*forcemap(14,inode,:) + dy*forcemap(16,inode,:) + dz*forcemap(17,inode,:))) &
+              + dy*(0.5*(dx*forcemap(16,inode,:) + dy*forcemap(19,inode,:) + dz*forcemap(20,inode,:))) &
+              + dz*(0.5*(dx*forcemap(17,inode,:) + dy*forcemap(20,inode,:) + dz*forcemap(21,inode,:)))
+  forcemap(38+9,inode,:) = forcemap(38+9,inode,:)&
+              + forcemap(12,inode,:)&
+              + dx*(0.5*(dx*forcemap(15,inode,:) + dy*forcemap(17,inode,:) + dz*forcemap(18,inode,:))) &
+              + dy*(0.5*(dx*forcemap(17,inode,:) + dy*forcemap(20,inode,:) + dz*forcemap(21,inode,:))) &
+              + dz*(0.5*(dx*forcemap(18,inode,:) + dy*forcemap(21,inode,:) + dz*forcemap(22,inode,:)))
 
-!  if(abs(fnode(4) - dfxx) > tol)&
-!    write(*,*) 'dfxx = ', fnode(4) - dfxx
-!  if(abs(fnode(5) - dfxy) > tol)&
-!    write(*,*) 'dfxy = ', fnode(5) - dfxy
-!  if(abs(fnode(6) - dfxz) > tol)&
-!    write(*,*) 'dfxz = ', fnode(6) - dfxz
-!  if(abs(fnode(7) - dfyy) > tol)&
-!    write(*,*) 'dfyy = ', fnode(7) - dfyy
-!  if(abs(fnode(8) - dfyz) > tol)&
-!    write(*,*) 'dfyz = ', fnode(8) - dfyz
-!  if(abs(fnode(9) - dfzz) > tol)&
-!    write(*,*) 'dfzz = ', fnode(9) - dfzz
+  ! 1/r^5
+  forcemap(38+10,inode,:) = forcemap(38+10,inode,:)&
+    + dx*forcemap(23,inode,:) + dy*forcemap(24,inode,:) + dz*forcemap(25,inode,:)
+  forcemap(38+11,inode,:) = forcemap(38+11,inode,:)&
+    + dx*forcemap(24,inode,:) + dy*forcemap(26,inode,:) + dz*forcemap(27,inode,:)
+  forcemap(38+12,inode,:) = forcemap(38+12,inode,:)&
+    + dx*forcemap(25,inode,:) + dy*forcemap(27,inode,:) + dz*forcemap(28,inode,:)
 
-!  if(abs(fnode(10) - d2fxxx) > tol)&
-!    write(*,*) 'd2fxxx = ', fnode(10) - d2fxxx
-!  if(abs(fnode(11) - d2fxxy) > tol)&
-!    write(*,*) 'd2fxxy = ', fnode(11) - d2fxxy
-!  if(abs(fnode(12) - d2fxxz) > tol)&
-!    write(*,*) 'd2fxxz = ', fnode(12) - d2fxxz
-!  if(abs(fnode(13) - d2fxyy) > tol)&
-!    write(*,*) 'd2fxyy = ', fnode(13) - d2fxyy
-!  if(abs(fnode(14) - d2fxyz) > tol)&
-!    write(*,*) 'd2fxyz = ', fnode(14) - d2fxyz
-!  if(abs(fnode(15) - d2fxzz) > tol)&
-!    write(*,*) 'd2fxzz = ', fnode(15) - d2fxzz
-!  if(abs(fnode(16) - d2fyyy) > tol)&
-!    write(*,*) 'd2fyyy = ', fnode(16) - d2fyyy
-!  if(abs(fnode(17) - d2fyyz) > tol)&
-!    write(*,*) 'd2fyyz = ', fnode(17) - d2fyyz
-!  if(abs(fnode(18) - d2fyzz) > tol)&
-!    write(*,*) 'd2fyzz = ', fnode(18) - d2fyzz
-!  if(abs(fnode(19) - d2fzzz) > tol)&
-!    write(*,*) 'd2fzzz = ', fnode(19) - d2fzzz
+  ! 1/r^6
+  forcemap(38+13,inode,:) = forcemap(38+13,inode,:)&
+        + dx*(0.5*(dx*forcemap(29,inode,:) + dy*forcemap(30,inode,:) + dz*forcemap(31,inode,:))) &
+        + dy*(0.5*(dx*forcemap(30,inode,:) + dy*forcemap(32,inode,:) + dz*forcemap(33,inode,:))) &
+        + dz*(0.5*(dx*forcemap(31,inode,:) + dy*forcemap(33,inode,:) + dz*forcemap(34,inode,:)))
+  forcemap(38+14,inode,:) = forcemap(38+14,inode,:)&
+        + dx*(0.5*(dx*forcemap(30,inode,:) + dy*forcemap(32,inode,:) + dz*forcemap(33,inode,:))) &
+        + dy*(0.5*(dx*forcemap(32,inode,:) + dy*forcemap(35,inode,:) + dz*forcemap(36,inode,:))) &
+        + dz*(0.5*(dx*forcemap(33,inode,:) + dy*forcemap(36,inode,:) + dz*forcemap(37,inode,:)))
+  forcemap(38+15,inode,:) = forcemap(38+15,inode,:)&
+        + dx*(0.5*(dx*forcemap(31,inode,:) + dy*forcemap(33,inode,:) + dz*forcemap(34,inode,:))) &
+        + dy*(0.5*(dx*forcemap(33,inode,:) + dy*forcemap(36,inode,:) + dz*forcemap(37,inode,:))) &
+        + dz*(0.5*(dx*forcemap(34,inode,:) + dy*forcemap(37,inode,:) + dz*forcemap(38,inode,:)))
 
-!  fxi2 = fxi2 + dx*(dfxx + 0.5*(dx*d2fxxx + dy*d2fxxy + dz*d2fxxz)) &
-!    + dy*(dfxy + 0.5*(dx*d2fxxy + dy*d2fxyy + dz*d2fxyz)) &
-!    + dz*(dfxz + 0.5*(dx*d2fxxz + dy*d2fxyz + dz*d2fxzz))
-!  fyi2 = fyi2 + dx*(dfxy + 0.5*(dx*d2fxxy + dy*d2fxyy + dz*d2fxyz)) &
-!    + dy*(dfyy + 0.5*(dx*d2fxyy + dy*d2fyyy + dz*d2fyyz)) &
-!    + dz*(dfyz + 0.5*(dx*d2fxyz + dy*d2fyyz + dz*d2fyzz))
-!  fzi2 = fzi2 + dx*(dfxz + 0.5*(dx*d2fxxz + dy*d2fxyz + dz*d2fxzz)) &
-!    + dy*(dfyz + 0.5*(dx*d2fxyz + dy*d2fyyz + dz*d2fyzz)) &
-!    + dz*(dfzz + 0.5*(dx*d2fxzz + dy*d2fyzz + dz*d2fzzz))
+  ! all
+  forcemap(38+16,inode,:) = forcemap(38+1,inode,:)& ! 1/r^2
+  + forcemap(38+4,inode,:) & ! 1/r^3
+  + forcemap(38+7,inode,:) & ! 1/r^4
+  + forcemap(38+10,inode,:) & ! 1/r^5
+  + forcemap(38+13,inode,:) ! 1/r^6
+    forcemap(38+17,inode,:) = forcemap(38+2,inode,:)& ! 1/r^2
+  + forcemap(38+5,inode,:) & ! 1/r^3
+  + forcemap(38+8,inode,:) & ! 1/r^4
+  + forcemap(38+11,inode,:) & ! 1/r^5
+  + forcemap(38+14,inode,:) ! 1/r^6
+    forcemap(38+18,inode,:) = forcemap(38+3,inode,:)& ! 1/r^2
+  + forcemap(38+6,inode,:) & ! 1/r^3
+  + forcemap(38+9,inode,:) & ! 1/r^4
+  + forcemap(38+12,inode,:) & ! 1/r^5
+  + forcemap(38+15,inode,:) ! 1/r^6
 
-!  if(abs(fxi - sum(frxi)) > tol)&
-!    write(*,*) 'diff fxi = ', fxi - sum(frxi), fxi, sum(frxi), fxi2
-!  if(abs(fyi - sum(fryi)) > tol)&
-!    write(*,*) 'diff fyi = ', fyi - sum(fryi), fyi, sum(fryi), fyi2
-!  if(abs(fzi - sum(frzi)) > tol)&
-!    write(*,*) 'diff fzi = ', fzi - sum(frzi), fzi, sum(frzi), fzi2
-!  write(*,*) 'fxi = ', fxi, sum(frxi), fxi2
+ endif
 #endif
 
  return

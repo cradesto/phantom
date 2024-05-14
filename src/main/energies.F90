@@ -344,14 +344,14 @@ subroutine compute_energies(t)
        call ev_data_update(ev_data_thread,iev_fxyz(3),fxyzu(3,i))
 
 #ifdef EXPAND_FGRAV_IN_MULTIPOLE
-       ! NB: eq value
+      ! NB: eq value
       !  call ev_data_update(ev_data_thread,iev_frxyz(1,1),frxyz(1,1,i))
       !  write(*,*) 'ene = ', i, frxyz(6,1,i), sum(frxyz(1:5,1,i))
 
        do j=1,6
-         call ev_data_update(ev_data_thread,iev_frxyz(j,1),frxyz(j,1,i))
-         call ev_data_update(ev_data_thread,iev_frxyz(j,2),frxyz(j,2,i))
-         call ev_data_update(ev_data_thread,iev_frxyz(j,3),frxyz(j,3,i))
+         call ev_data_update(ev_data_thread,iev_frxyz(j,1),sum(frxyz(j,1,:,i)))
+         call ev_data_update(ev_data_thread,iev_frxyz(j,2),sum(frxyz(j,2,:,i)))
+         call ev_data_update(ev_data_thread,iev_frxyz(j,3),sum(frxyz(j,3,:,i)))
        enddo
 #endif
 

@@ -196,7 +196,7 @@ subroutine get_neighbour_list(inode,mylistneigh,nneigh,xyzh,xyzcache,ixyzcachesi
 #else
 subroutine get_neighbour_list(inode,mylistneigh,nneigh,xyzh,xyzcache,ixyzcachesize, &
                               getj,f,remote_export, &
-                              cell_xpos,cell_xsizei,cell_rcuti,getneighmap,getfr5map)
+                              cell_xpos,cell_xsizei,cell_rcuti,getneighmap,getforcemap)
 #endif
  use io,     only:nprocs
  use dim,    only:mpi
@@ -218,7 +218,7 @@ subroutine get_neighbour_list(inode,mylistneigh,nneigh,xyzh,xyzcache,ixyzcachesi
  real,    intent(in),  optional :: cell_xpos(3),cell_xsizei,cell_rcuti
 #ifdef EXPAND_FGRAV_IN_MULTIPOLE
  logical, intent(in),  optional :: getneighmap
- logical, intent(in),  optional :: getfr5map
+ logical, intent(in),  optional :: getforcemap
 #endif
  real :: xpos(3)
  real :: fgrav(lenfgrav),fgrav_global(lenfgrav)
@@ -272,10 +272,13 @@ subroutine get_neighbour_list(inode,mylistneigh,nneigh,xyzh,xyzcache,ixyzcachesi
  call getneigh(node,xpos,xsizei,rcuti,3,mylistneigh,nneigh,xyzh,xyzcache,ixyzcachesize,&
               ifirstincell,get_j,get_f,fgrav)
 #else
- if (present(getneighmap)) then
+ if (present(getneighmap) .and. present(getforcemap)) then
+  call getneigh(node,xpos,xsizei,rcuti,3,mylistneigh,nneigh,xyzh,xyzcache,ixyzcachesize,&
+              ifirstincell,get_j,get_f,fgrav,inode = inode,neighmap = neighmap,forcemap = forcemap)
+ else if (present(getneighmap)) then
   call getneigh(node,xpos,xsizei,rcuti,3,mylistneigh,nneigh,xyzh,xyzcache,ixyzcachesize,&
               ifirstincell,get_j,get_f,fgrav,inode = inode,neighmap = neighmap)
- else if (present(getfr5map)) then
+ else if (present(getforcemap)) then
   call getneigh(node,xpos,xsizei,rcuti,3,mylistneigh,nneigh,xyzh,xyzcache,ixyzcachesize,&
               ifirstincell,get_j,get_f,fgrav,inode = inode,forcemap = forcemap)
  else

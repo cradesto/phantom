@@ -25,14 +25,18 @@
       //   // "binary.in"
       //   "star_m1_00990"
       // ],
-      "program": "/home/marat/phys/phantom/phantom_test/test_gw/star_tolv_1e-2_tree_0.5_eos_02_r_10_n_200_stripping/phantom",
-      "args": [
-        "star_m1.in"
-      ],
-      // "program": "/home/marat/phys/phantom/phantom_test/test_gw/poly/phantom2hdf5",
+      // "program": "/home/marat/phys/phantom/phantom_test/com/phantomanalysis",
       // "args": [
-      //   "binary_00000"
+      //   "/home/marat/phys/phantom/phantom_test/com/star_00200"
       // ],
+      // "program": "/home/marat/phys/phantom/phantom_test/com/phantom",
+      // "args": [
+        // "/home/marat/phys/phantom/phantom_test/com/star.in"
+      // ],
+      "program": "/home/marat/phys/phantom/phantom_test/com/phantom2hdf5",
+      "args": [
+        "star_30000"
+      ],
       "osx": {
         "program": "/Users/marat/Documents/phys/phantom/phantom_test/m1_1.4Msun_r1_10km_m2_0.5Msun_r2_10km_d_36km/phantomanalysis",
         "args": [

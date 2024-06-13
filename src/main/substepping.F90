@@ -28,7 +28,7 @@ module substepping
 ! :Dependencies: chem, cons2primsolver, cooling, cooling_ism, damping, dim,
 !   dust_formation, eos, extern_gr, externalforces, io, io_summary,
 !   krome_interface, metric_tools, mpiutils, options, part, ptmass,
-!   ptmass_radiation, timestep, timestep_sts
+!   ptmass_radiation, subgroup, timestep, timestep_sts
 !
  implicit none
 
@@ -430,7 +430,7 @@ subroutine substep(npart,ntypes,nptmass,dtsph,dtextforce,time,xyzh,vxyzu,fext, &
                    n_group,n_ingroup,n_sing)
  use io,             only:iverbose,id,master,iprint,fatal
  use options,        only:iexternalforce
- use part,           only:fxyz_ptmass_sinksink
+ use part,           only:fxyz_ptmass_sinksink,ndptmass
  use io_summary,     only:summary_variable,iosumextr,iosumextt
  use externalforces, only:is_velocity_dependent
  use ptmass,         only:use_fourthorder,use_regnbody,ck,dk
@@ -442,7 +442,7 @@ subroutine substep(npart,ntypes,nptmass,dtsph,dtextforce,time,xyzh,vxyzu,fext, &
  real,            intent(inout) :: dtextforce
  real,            intent(inout) :: xyzh(:,:),vxyzu(:,:),fext(:,:)
  real,            intent(inout) :: xyzmh_ptmass(:,:),vxyz_ptmass(:,:),fxyz_ptmass(:,:),dsdt_ptmass(:,:)
- real,            intent(inout) :: dptmass(:,:),fsink_old(:,:),gtgrad(:,:)
+ real,            intent(inout) :: dptmass(ndptmass,nptmass),fsink_old(:,:),gtgrad(:,:)
  integer(kind=1), intent(in)    :: nbinmax
  integer(kind=1), intent(inout) :: ibin_wake(:),nmatrix(nptmass,nptmass)
  logical :: extf_vdep_flag,done,last_step,accreted
@@ -607,9 +607,9 @@ subroutine drift(cki,dt,time_par,npart,nptmass,ntypes,xyzh,xyzmh_ptmass,vxyzu,vx
  !$omp end parallel do
 
  ! Drift sink particles
- if(nptmass>0) then
-    if(id==master) then
-       if(present(n_ingroup)) then
+ if (nptmass>0) then
+    if (id==master) then
+       if (present(n_ingroup)) then
           call ptmass_drift(nptmass,ckdt,xyzmh_ptmass,vxyz_ptmass,group_info,n_ingroup)
        else
           call ptmass_drift(nptmass,ckdt,xyzmh_ptmass,vxyz_ptmass)
@@ -859,7 +859,7 @@ subroutine get_force(nptmass,npart,nsubsteps,ntypes,timei,dtextforce,xyzh,vxyzu,
     extrap  = .false.
  endif
 
- if(present(group_info)) then
+ if (present(group_info)) then
     wsub = .true.
  else
     wsub = .false.
@@ -888,7 +888,7 @@ subroutine get_force(nptmass,npart,nsubsteps,ntypes,timei,dtextforce,xyzh,vxyzu,
  if (nptmass > 0) then
     if (id==master) then
        if (extrap) then
-          if(wsub) then
+          if (wsub) then
              call get_accel_sink_sink(nptmass,xyzmh_ptmass,fxyz_ptmass,epot_sinksink,&
                                     dtf,iexternalforce,timei,merge_ij,merge_n,dsdt_ptmass, &
                                     extrapfac,fsink_old,group_info)
@@ -910,7 +910,7 @@ subroutine get_force(nptmass,npart,nsubsteps,ntypes,timei,dtextforce,xyzh,vxyzu,
              endif
           endif
        else
-          if(wsub) then
+          if (wsub) then
              call get_accel_sink_sink(nptmass,xyzmh_ptmass,fxyz_ptmass,epot_sinksink,&
                                     dtf,iexternalforce,timei,merge_ij,merge_n,dsdt_ptmass,group_info=group_info)
              if (merge_n > 0) then
@@ -1012,7 +1012,7 @@ subroutine get_force(nptmass,npart,nsubsteps,ntypes,timei,dtextforce,xyzh,vxyzu,
        ! Radiation pressure force with isink_radiation
        !
        if (nptmass > 0 .and. isink_radiation > 0) then
-          if(extrap) then
+          if (extrap) then
              if (itau_alloc == 1) then
                 call get_rad_accel_from_ptmass(nptmass,npart,i,xi,yi,zi,xyzmh_ptmass,fextx,fexty,fextz, &
                                               tau=tau,fsink_old=fsink_old,extrapfac=extrapfac)

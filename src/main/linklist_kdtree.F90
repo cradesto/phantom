@@ -36,7 +36,7 @@ module linklist
  integer,      public,  allocatable :: listneigh(:)
  integer,      public,  allocatable :: listneigh_global(:)
 
-#ifdef EXPAND_FGRAV_IN_MULTIPOLE
+#ifdef NEIGHMAP
  integer,      public,  allocatable :: neighmap(:,:)
  real,         public,  allocatable :: forcemap(:,:,:)
 #endif
@@ -189,7 +189,7 @@ end subroutine set_linklist
 ! the list is returned in 'listneigh' (length nneigh)
 !+
 !-----------------------------------------------------------------------
-#ifndef EXPAND_FGRAV_IN_MULTIPOLE
+#ifndef NEIGHMAP
 subroutine get_neighbour_list(inode,mylistneigh,nneigh,xyzh,xyzcache,ixyzcachesize, &
                               getj,f,remote_export, &
                               cell_xpos,cell_xsizei,cell_rcuti)
@@ -216,7 +216,7 @@ subroutine get_neighbour_list(inode,mylistneigh,nneigh,xyzh,xyzcache,ixyzcachesi
  real,    intent(out), optional :: f(lenfgrav)
  logical, intent(out), optional :: remote_export(:)
  real,    intent(in),  optional :: cell_xpos(3),cell_xsizei,cell_rcuti
-#ifdef EXPAND_FGRAV_IN_MULTIPOLE
+#ifdef NEIGHMAP
  logical, intent(in),  optional :: getneighmap
  logical, intent(in),  optional :: getforcemap
 #endif
@@ -272,6 +272,7 @@ subroutine get_neighbour_list(inode,mylistneigh,nneigh,xyzh,xyzcache,ixyzcachesi
  call getneigh(node,xpos,xsizei,rcuti,3,mylistneigh,nneigh,xyzh,xyzcache,ixyzcachesize,&
               ifirstincell,get_j,get_f,fgrav)
 #else
+#ifdef NEIGHMAP
  if (present(getneighmap) .and. present(getforcemap)) then
   call getneigh(node,xpos,xsizei,rcuti,3,mylistneigh,nneigh,xyzh,xyzcache,ixyzcachesize,&
               ifirstincell,get_j,get_f,fgrav,inode = inode,neighmap = neighmap,forcemap = forcemap)
@@ -285,6 +286,10 @@ subroutine get_neighbour_list(inode,mylistneigh,nneigh,xyzh,xyzcache,ixyzcachesi
   call getneigh(node,xpos,xsizei,rcuti,3,mylistneigh,nneigh,xyzh,xyzcache,ixyzcachesize,&
               ifirstincell,get_j,get_f,fgrav)
  endif
+#else
+  call getneigh(node,xpos,xsizei,rcuti,3,mylistneigh,nneigh,xyzh,xyzcache,ixyzcachesize,&
+              ifirstincell,get_j,get_f,fgrav)
+#endif
 #endif
 
  if (get_f) f = fgrav + fgrav_global

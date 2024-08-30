@@ -41,7 +41,7 @@ ANALYSIS      = analysis_dtheader.f90
 MULTIRUNFILE  = multirun.f90
 LIVE_ANALYSIS = no
 LINKLIST      = dtype_kdtree.F90 kdtree.F90 linklist_kdtree.F90
-DEBUG         = yes
+DEBUG         = no
 #
 # can comment out the following lines and instead set
 # the parameters as environment variables
@@ -53,7 +53,7 @@ ifndef EDITOR
     EDITOR= emacs
 endif
 ifndef OPENMP
-    OPENMP= no
+    OPENMP= yes
 endif
 ifndef SPLASH_DIR
     SPLASH_DIR=${shell if [ -d $$HOME/splash ]; then echo $$HOME/splash; fi}
@@ -291,6 +291,10 @@ endif
 
 ifeq ($(EXPAND_FGRAV_IN_MULTIPOLE), yes)
     FPPFLAGS += -DEXPAND_FGRAV_IN_MULTIPOLE
+endif
+
+ifeq ($(NEIGHMAP), yes)
+    FPPFLAGS += -DNEIGHMAP
 endif
 
 #

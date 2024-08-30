@@ -903,7 +903,7 @@ end subroutine sort_particles_in_cell
 !  (all particles within a given h_i and optionally within h_j)
 !+
 !----------------------------------------------------------------
-#ifndef EXPAND_FGRAV_IN_MULTIPOLE
+#ifndef NEIGHMAP
 subroutine getneigh(node,xpos,xsizei,rcuti,ndim,listneigh,nneigh,xyzh,xyzcache,ixyzcachesize,ifirstincell,&
 & get_hj,get_f,fnode,remote_export)
 #else
@@ -934,11 +934,13 @@ subroutine getneigh(node,xpos,xsizei,rcuti,ndim,listneigh,nneigh,xyzh,xyzcache,i
  real,    intent(out),    optional  :: fnode(lenfgrav)
  logical, intent(out),    optional  :: remote_export(:)
 #ifdef EXPAND_FGRAV_IN_MULTIPOLE
+ real :: dfnode(38)
+#ifdef NEIGHMAP
  integer, intent(in),     optional  :: inode
  integer, intent(inout),  optional  :: neighmap(:,:)
  real, intent(inout),  optional  :: forcemap(:,:,:)
- real :: dfnode(38)
  real :: pmassi
+#endif
 #endif
  integer, parameter :: istacksize = 300
  integer :: maxcache
@@ -983,7 +985,7 @@ subroutine getneigh(node,xpos,xsizei,rcuti,ndim,listneigh,nneigh,xyzh,xyzcache,i
  open_tree_node = .false.
 
 #ifdef GRAVITY
-#ifdef EXPAND_FGRAV_IN_MULTIPOLE
+#ifdef NEIGHMAP
 !  if (present(inode)) then
     ! pmassi = massoftype(igas)
     ! if(inode > 0) then
@@ -1094,7 +1096,7 @@ subroutine getneigh(node,xpos,xsizei,rcuti,ndim,listneigh,nneigh,xyzh,xyzcache,i
              endif if_cache_fits
              nneigh = nneigh + npnode
           endif if_global_walk
-#ifdef EXPAND_FGRAV_IN_MULTIPOLE
+#ifdef NEIGHMAP
           if (present(inode)) then
               ! write(*,'(i0,a,i0,a,es13.6,a)', advance="no") n, "+(", npnode, ", ", sqrt(r2), "), "
              if (present(neighmap))&
@@ -1141,17 +1143,18 @@ subroutine getneigh(node,xpos,xsizei,rcuti,ndim,listneigh,nneigh,xyzh,xyzcache,i
           dr = 1./sqrt(r2)
 #endif
 #ifdef EXPAND_FGRAV_IN_MULTIPOLE
+#ifdef NEIGHMAP
           !  if_leaf_count_gravity: if (ifirstincell(n) /= 0) then ! once we hit a leaf node, retrieve contents into trial neighbour cache
           if (present(inode)) then
-            !  npnode = inoderange(2,n) - inoderange(1,n) + 1
-              ! write(*,'(i0,a,i0,a,es13.6,a)', advance="no") n, "-(", npnode, ", ", sqrt(r2), "), "
-             if (present(neighmap))&
-                neighmap(inode,n) = -1
+            ! npnode = inoderange(2,n) - inoderange(1,n) + 1
+            ! write(*,'(i0,a,i0,a,es13.6,a)', advance="no") n, "-(", npnode, ", ", sqrt(r2), "), "
+            if (present(neighmap))&
+              neighmap(inode,n) = -1
           endif
           call compute_fnode(dx,dy,dz,dr,totmass_node,quads,fnode,dfnode)
           if (present(inode)) then
-             if (present(forcemap))&
-                forcemap(1:38,inode,n) = dfnode
+            if (present(forcemap))&
+              forcemap(1:38,inode,n) = dfnode
           endif
           !  else
           !    if (istack+2 > istacksize) call fatal('getneigh','stack overflow in getneigh')
@@ -1165,6 +1168,9 @@ subroutine getneigh(node,xpos,xsizei,rcuti,ndim,listneigh,nneigh,xyzh,xyzcache,i
           !    endif
           !  endif if_leaf_count_gravity
 #else
+          call compute_fnode(dx,dy,dz,dr,totmass_node,quads,fnode,dfnode)
+#endif
+#else
           call compute_fnode(dx,dy,dz,dr,totmass_node,quads,fnode)
 #endif
 
@@ -1174,7 +1180,7 @@ subroutine getneigh(node,xpos,xsizei,rcuti,ndim,listneigh,nneigh,xyzh,xyzcache,i
     endif if_open_node
  enddo over_stack
 
-#ifdef EXPAND_FGRAV_IN_MULTIPOLE
+#ifdef NEIGHMAP
 !  if (present(inode)) then
     ! write(*,'()')
 !  endif
@@ -1382,17 +1388,23 @@ end subroutine compute_fnode
 #ifndef EXPAND_FGRAV_IN_MULTIPOLE
 pure subroutine expand_fgrav_in_taylor_series(fnode,dx,dy,dz,fxi,fyi,fzi,poti)
 #else
+#ifdef NEIGHMAP
 pure subroutine expand_fgrav_in_taylor_series(fnode,dx,dy,dz,fxi,fyi,fzi,frxi,fryi,frzi,poti,inode,forcemap)
+#else
+  pure subroutine expand_fgrav_in_taylor_series(fnode,dx,dy,dz,fxi,fyi,fzi,frxi,fryi,frzi,poti)
+#endif
 #endif
  real, intent(in)  :: fnode(lenfgrav)
  real, intent(in)  :: dx,dy,dz
  real, intent(out) :: fxi,fyi,fzi,poti
 #ifdef EXPAND_FGRAV_IN_MULTIPOLE
  real, intent(out) :: frxi(5),fryi(5),frzi(5)
- integer, intent(in) :: inode
- real, intent(inout), optional :: forcemap(:,:,:)
  real :: fxi2,fyi2,fzi2
 !  real :: tol = 1.0e-19
+#ifdef NEIGHMAP
+ integer, intent(in) :: inode
+ real, intent(inout) :: forcemap(:,:,:)
+#endif
 #endif
  real :: dfxx,dfxy,dfxz,dfyy,dfyz,dfzz
  real :: d2fxxx,d2fxxy,d2fxxz,d2fxyy,d2fxyz,d2fxzz,d2fyyy,d2fyyz,d2fyzz,d2fzzz
@@ -1502,7 +1514,7 @@ pure subroutine expand_fgrav_in_taylor_series(fnode,dx,dy,dz,fxi,fyi,fzi,frxi,fr
          + dy*(0.5*(dx*d2fxyz + dy*d2fyyz + dz*d2fyzz)) &
          + dz*(0.5*(dx*d2fxzz + dy*d2fyzz + dz*d2fzzz))
 
- if(present(forcemap)) then
+#ifdef NEIGHMAP
   ! 1/r^2
   forcemap(38+1,inode,:) = forcemap(38+1,inode,:) + forcemap(1,inode,:)
   forcemap(38+2,inode,:) = forcemap(38+2,inode,:) + forcemap(2,inode,:)
@@ -1572,7 +1584,7 @@ pure subroutine expand_fgrav_in_taylor_series(fnode,dx,dy,dz,fxi,fyi,fzi,frxi,fr
   + forcemap(38+12,inode,:) & ! 1/r^5
   + forcemap(38+15,inode,:) ! 1/r^6
 
- endif
+#endif
 #endif
 
  return

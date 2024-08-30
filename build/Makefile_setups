@@ -956,8 +956,8 @@ endif
 ifeq ($(SETUP), stripping)
 #   single (option 2) or binary (option 3) polytrope test
     SETUPFILE     = setup_star.f90
-    # ANALYSIS      = analysis_stripping.f90
-    ANALYSIS      = utils_getneighbours.F90 utils_omp.F90 analysis_getneighbours.f90
+    ANALYSIS      = analysis_stripping.f90
+    # ANALYSIS      = utils_getneighbours.F90 utils_omp.F90 analysis_getneighbours.f90
     IND_TIMESTEPS = no
     GRAVITY       = yes
     ISOTHERMAL    = yes
@@ -966,6 +966,7 @@ ifeq ($(SETUP), stripping)
     # LAPACK        = yes
     SRCPOT        = ${SRCPOTS:extern_gwinspiral.f90=extern_gwinspiral_stripping.f90}
     EXPAND_FGRAV_IN_MULTIPOLE = yes
+    # NEIGHMAP = yes
 endif
 
 ifeq ($(SETUP), evrard)

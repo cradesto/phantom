@@ -220,9 +220,11 @@ subroutine force(icall,npart,xyzh,vxyzu,fxyzu,divcurlv,divcurlB,Bevol,dBevol,&
 #endif
 #ifdef EXPAND_FGRAV_IN_MULTIPOLE
  use part,         only:frxyz
+#ifdef NEIGHMAP
  use linklist,     only:node, neighmap, forcemap
  use allocutils,   only:allocate_array
  use kernel,       only:radkern
+#endif
 #endif
  use mpiderivs,    only:send_cell,recv_cells,check_send_finished,init_cell_exchange,&
       finish_cell_exchange,recv_while_wait,reset_cell_counters
@@ -265,7 +267,7 @@ subroutine force(icall,npart,xyzh,vxyzu,fxyzu,divcurlv,divcurlB,Bevol,dBevol,&
  real    :: hi,pmassi,rhoi
  logical :: iactivei,iamdusti
  integer :: iamtypei
-#ifdef EXPAND_FGRAV_IN_MULTIPOLE
+#ifdef NEIGHMAP
  real    :: node_size
  real    :: tol = 1.0e-19
  integer :: k
@@ -296,6 +298,7 @@ subroutine force(icall,npart,xyzh,vxyzu,fxyzu,divcurlv,divcurlB,Bevol,dBevol,&
 
  real(kind=4)              :: t1,t2,tcpu1,tcpu2
 
+#ifdef NEIGHMAP
  real :: m22, m44, m45, m49,&
   s22, s44, s45, s49,&
   r22_49,&
@@ -303,6 +306,7 @@ subroutine force(icall,npart,xyzh,vxyzu,fxyzu,divcurlv,divcurlB,Bevol,dBevol,&
   r22_45,&
   r44_45,&
   disbalance_x, disbalance_y, disbalance_z
+#endif
 
 #ifdef IND_TIMESTEPS
  nbinmaxnew      = 0
@@ -431,6 +435,9 @@ subroutine force(icall,npart,xyzh,vxyzu,fxyzu,divcurlv,divcurlB,Bevol,dBevol,&
 !$omp shared(rhomax,ipart_rhomax,icreate_sinks,rho_crit,r_crit2) &
 !$omp private(rhomax_thread,ipart_rhomax_thread,use_part,j) &
 #endif
+#ifdef EXPAND_FGRAV_IN_MULTIPOLE
+!$omp shared(frxyz) &
+#endif
 !$omp shared(id) &
 !$omp private(do_export) &
 !$omp shared(irequestrecv,irequestsend) &
@@ -467,7 +474,8 @@ subroutine force(icall,npart,xyzh,vxyzu,fxyzu,divcurlv,divcurlB,Bevol,dBevol,&
  !$omp end single
 
 #ifdef EXPAND_FGRAV_IN_MULTIPOLE
-!  write(*,'(a,i0,a,i0)') "---- Force ---- number of cells/parts = ", ncells, ", ", npart
+#ifdef NEIGHMAP
+ write(*,'(a,i0,a,i0)') "---- Force ---- number of cells/parts = ", ncells, ", ", npart
  if(.not.allocated(neighmap)) then
     call allocate_array('neighmap', neighmap, int(ncells), int(ncells))
  else
@@ -477,16 +485,17 @@ subroutine force(icall,npart,xyzh,vxyzu,fxyzu,divcurlv,divcurlB,Bevol,dBevol,&
     endif
  endif
  neighmap = 0
-!  if(.not.allocated(forcemap)) then
-!     call allocate_array('forcemap', forcemap, 38+18, int(ncells), int(ncells))
-!  else
-!     if(size(forcemap,dim = 1) < ncells) then
-!        deallocate(forcemap)
-!        call allocate_array('forcemap', forcemap, 38+18, int(ncells), int(ncells))
-!     endif
-!  endif
-!  forcemap = 0.0
- frxyz = 0.0
+ if(.not.allocated(forcemap)) then
+    call allocate_array('forcemap', forcemap, 38+18, int(ncells), int(ncells))
+ else
+    if(size(forcemap,dim = 1) < ncells) then
+       deallocate(forcemap)
+       call allocate_array('forcemap', forcemap, 38+18, int(ncells), int(ncells))
+    endif
+ endif
+ forcemap = 0.0
+#endif
+frxyz = 0.0
 #endif
 
  !$omp do schedule(runtime)
@@ -494,7 +503,7 @@ subroutine force(icall,npart,xyzh,vxyzu,fxyzu,divcurlv,divcurlB,Bevol,dBevol,&
     i = ifirstincell(icell)
 
     !--skip empty cells AND inactive cells
-#ifndef EXPAND_FGRAV_IN_MULTIPOLE
+#ifndef NEIGHMAP
     if (i <= 0) cycle over_cells
 #else
     if (i <= 0) then
@@ -515,7 +524,7 @@ subroutine force(icall,npart,xyzh,vxyzu,fxyzu,divcurlv,divcurlB,Bevol,dBevol,&
     call start_cell(cell,iphase,xyzh,vxyzu,gradh,divcurlv,divcurlB,dvdx,Bevol, &
         dustfrac,dustprop,eta_nimhd,eos_vars,alphaind,stressmax,&
         rad,radprop,dens,metrics)
-#ifndef EXPAND_FGRAV_IN_MULTIPOLE
+#ifndef NEIGHMAP
     if (cell%npcell == 0) cycle over_cells
 #else
     if (cell%npcell == 0) then
@@ -529,13 +538,13 @@ subroutine force(icall,npart,xyzh,vxyzu,fxyzu,divcurlv,divcurlB,Bevol,dBevol,&
     !--get the neighbour list and fill the cell cache
     !
 
-#ifndef EXPAND_FGRAV_IN_MULTIPOLE
+#ifndef NEIGHMAP
     call get_neighbour_list(icell,listneigh,nneigh,xyzh,xyzcache,maxcellcache, &
         getj=.true.,f=cell%fgrav,remote_export=remote_export)
 #else
     call get_neighbour_list(icell,listneigh,nneigh,xyzh,xyzcache,maxcellcache, &
-        ! getj=.true.,f=cell%fgrav,remote_export=remote_export,getneighmap=.true.,getforcemap=.true.)
-        getj=.true.,f=cell%fgrav,remote_export=remote_export,getneighmap=.true.)
+        getj=.true.,f=cell%fgrav,remote_export=remote_export,getneighmap=.true.,getforcemap=.true.)
+        ! getj=.true.,f=cell%fgrav,remote_export=remote_export,getneighmap=.true.)
 #endif
 
     cell%owner                   = id
@@ -583,7 +592,7 @@ subroutine force(icall,npart,xyzh,vxyzu,fxyzu,divcurlv,divcurlB,Bevol,dBevol,&
  enddo over_cells
  !$omp enddo
 
-#ifdef EXPAND_FGRAV_IN_MULTIPOLE
+#ifdef NEIGHMAP
 ! MARK: DISBALANCE
  ! if(abs(sum(frxyz(1,1,:))) > 1.0e-17) then
  hi = minval(xyzh(4,:))
@@ -620,100 +629,101 @@ subroutine force(icall,npart,xyzh,vxyzu,fxyzu,divcurlv,divcurlB,Bevol,dBevol,&
   pmassi*sum(fxyzu(3,:))
  ! endif
 
-! ! neighmap
-!  do i = 0, ncells
-!     write(*,'(i3)', advance='no') i
-!  enddo
-!  write(*,'()')
-!  do i = 1, ncells
-!     write(*,'(1000i3)') i, neighmap(i, 1:ncells)
-!  end do
-!  asymmetric_cells = 0
-!  asymmetric_cells_unique = 0
-!  neighmap = abs(transpose(neighmap) - neighmap)
-!  do j = 1, ncells
-!     do i = j + 1, ncells
-!        if(neighmap(i,j) /= 0) then
-!           if (ifirstincell(j) == 0) then ! only super
-!             asymmetric_cells = asymmetric_cells + 1
-!           endif
-!           write(*,*) 'transpose(neighmap) != neighmap', i, j, &
-!             ifirstincell(i), ifirstincell(j)
-!        endif
-!     end do
-!  end do
-!  if(any(neighmap > 0)) then
-!     write(*,*) t, ' Asymmetric', asymmetric_cells, asymmetric_cells_unique
-!     ! stop
-!  else
-!     write(*,*) t, ' Symmetric'
-!  endif
+! neighmap
+ do i = 0, ncells
+    write(*,'(i3)', advance='no') i
+ enddo
+ write(*,'()')
+ do i = 1, ncells
+    write(*,'(1000i3)') i, neighmap(i, 1:ncells)
+ end do
+ asymmetric_cells = 0
+ asymmetric_cells_unique = 0
+ neighmap = abs(transpose(neighmap) - neighmap)
+ do j = 1, ncells
+    do i = j + 1, ncells
+       if(neighmap(i,j) /= 0) then
+          if (ifirstincell(j) == 0) then ! only super
+            asymmetric_cells = asymmetric_cells + 1
+          endif
+          write(*,*) 'transpose(neighmap) != neighmap', i, j, &
+            ifirstincell(i), ifirstincell(j)
+       endif
+    end do
+ end do
+ if(any(neighmap > 0)) then
+    write(*,*) t, ' Asymmetric', asymmetric_cells, asymmetric_cells_unique
+    ! stop
+ else
+    write(*,*) t, ' Symmetric'
+ endif
 
-!  write(*,*) 'sum forcemap_x = ', sum(forcemap(38+16, 1:ncells, 1:ncells))
-!  write(*,*) 'sum forcemap_y = ', sum(forcemap(38+17, 1:ncells, 1:ncells))
-!  write(*,*) 'sum forcemap_z = ', sum(forcemap(38+18, 1:ncells, 1:ncells))
-!  write(*,*) 'sum f forcemap = ', pmassi*sqrt(sum(forcemap(38+16, 1:ncells, 1:ncells))**2 &
-!   + sum(forcemap(38+17, 1:ncells, 1:ncells))**2 &
-!   + sum(forcemap(38+18, 1:ncells, 1:ncells))**2)
+ write(*,*) 'sum forcemap_x = ', pmassi*sum(forcemap(38+16, 1:ncells, 1:ncells))
+ write(*,*) 'sum forcemap_y = ', pmassi*sum(forcemap(38+17, 1:ncells, 1:ncells))
+ write(*,*) 'sum forcemap_z = ', pmassi*sum(forcemap(38+18, 1:ncells, 1:ncells))
+ write(*,*) 'sum f forcemap = ', pmassi*sqrt(sum(forcemap(38+16, 1:ncells, 1:ncells))**2 &
+  + sum(forcemap(38+17, 1:ncells, 1:ncells))**2 &
+  + sum(forcemap(38+18, 1:ncells, 1:ncells))**2)
 
 ! NB: additional force due to tree asymmetry for node 22(44|45) <-> 49
 
-!  write(*,*) '44 <- 49 = ', forcemap(38+16, 44, 49)
-!  write(*,*) '45 <- 49 = ', forcemap(38+16, 45, 49)
-!  write(*,*) '49 <- 22 = ', forcemap(38+16, 49, 22)
-!  disbalance_x = forcemap(38+16, 44, 49) + forcemap(38+16, 45, 49) + forcemap(38+16, 49, 22)
-!  write(*,*) 'disbalance x = ', disbalance_x
-!  disbalance_y = forcemap(38+17, 44, 49) + forcemap(38+17, 45, 49) + forcemap(38+17, 49, 22)
-!  write(*,*) 'disbalance y = ', disbalance_y
-!  disbalance_z = forcemap(38+18, 44, 49) + forcemap(38+18, 45, 49) + forcemap(38+18, 49, 22)
-!  write(*,*) 'disbalance z = ', disbalance_z
+ write(*,*) '44 <- 49 = ', forcemap(38+16, 44, 49)
+ write(*,*) '45 <- 49 = ', forcemap(38+16, 45, 49)
+ write(*,*) '49 <- 22 = ', forcemap(38+16, 49, 22)
+ disbalance_x = forcemap(38+16, 44, 49) + forcemap(38+16, 45, 49) + forcemap(38+16, 49, 22)
+ write(*,*) 'disbalance x = ', disbalance_x
+ disbalance_y = forcemap(38+17, 44, 49) + forcemap(38+17, 45, 49) + forcemap(38+17, 49, 22)
+ write(*,*) 'disbalance y = ', disbalance_y
+ disbalance_z = forcemap(38+18, 44, 49) + forcemap(38+18, 45, 49) + forcemap(38+18, 49, 22)
+ write(*,*) 'disbalance z = ', disbalance_z
 
-!  write(*,*) 'disbalance = ', sqrt(disbalance_x**2 + disbalance_y**2 + disbalance_z**2)
-!  write(*,*) 'f disbalance = ', pmassi*sqrt(disbalance_x**2 + disbalance_y**2 + disbalance_z**2)
+ write(*,*) 'disbalance = ', sqrt(disbalance_x**2 + disbalance_y**2 + disbalance_z**2)
+ write(*,*) 'f disbalance = ', pmassi*sqrt(disbalance_x**2 + disbalance_y**2 + disbalance_z**2)
 
-!  do icell = 1, ncells
-!   if(icell == 22 .or. &
-!      icell == 44 .or. &
-!      icell == 45 .or. &
-!      icell == 49) then
+ do icell = 1, ncells
+  if(icell == 22 .or. &
+     icell == 44 .or. &
+     icell == 45 .or. &
+     icell == 49) then
 
-!     write(*,*) 'node id = ', icell
+    write(*,*) 'node id = ', icell
 
-!     write(*,*) 'node com pos = ', node(icell)%xcen(1:3)
-!     write(*,*) 'node size = ', node(icell)%size
-!     write(*,*) 'hmax = ', node(icell)%hmax
-!     write(*,*) 'rcuti = ', radkern*node(icell)%hmax
+    write(*,*) 'node com pos = ', node(icell)%xcen(1:3)
+    write(*,*) 'node size = ', node(icell)%size
+    write(*,*) 'hmax = ', node(icell)%hmax
+    write(*,*) 'rcuti = ', radkern*node(icell)%hmax
 
-!     write(*,*) 'node particles = ', inoderange(2,icell) - inoderange(1,icell) + 1
-!   endif
-!  enddo
+    write(*,*) 'node particles = ', inoderange(2,icell) - inoderange(1,icell) + 1
+  endif
+ enddo
 
-!  icell = 22
-!  m22 = pmassi*(inoderange(2,icell) - inoderange(1,icell) + 1)
-!  s22 = node(icell)%size
-!  r22_44 = norm2(node(icell)%xcen(1:3) - node(44)%xcen(1:3))
-!  r22_45 = norm2(node(icell)%xcen(1:3) - node(45)%xcen(1:3))
-!  r22_49 = norm2(node(icell)%xcen(1:3) - node(49)%xcen(1:3))
-!  write(*,*) 'd 22 - 44 = ', r22_44
-!  write(*,*) 'd 22 - 45 = ', r22_45
-!  write(*,*) 'd 22 - 49 = ', r22_49
+ icell = 22
+ m22 = pmassi*(inoderange(2,icell) - inoderange(1,icell) + 1)
+ s22 = node(icell)%size
+ r22_44 = norm2(node(icell)%xcen(1:3) - node(44)%xcen(1:3))
+ r22_45 = norm2(node(icell)%xcen(1:3) - node(45)%xcen(1:3))
+ r22_49 = norm2(node(icell)%xcen(1:3) - node(49)%xcen(1:3))
+ write(*,*) 'd 22 - 44 = ', r22_44
+ write(*,*) 'd 22 - 45 = ', r22_45
+ write(*,*) 'd 22 - 49 = ', r22_49
 
-!  icell = 44
-!  m44 = pmassi*(inoderange(2,icell) - inoderange(1,icell) + 1)
-!  s44 = node(icell)%size
-!  r44_45 = norm2(node(icell)%xcen(1:3) - node(45)%xcen(1:3))
-!  write(*,*) 'd 44 - 45 = ', r44_45
+ icell = 44
+ m44 = pmassi*(inoderange(2,icell) - inoderange(1,icell) + 1)
+ s44 = node(icell)%size
+ r44_45 = norm2(node(icell)%xcen(1:3) - node(45)%xcen(1:3))
+ write(*,*) 'd 44 - 45 = ', r44_45
 
-!  icell = 45
-!  m45 = pmassi*(inoderange(2,icell) - inoderange(1,icell) + 1)
-!  s45 = node(icell)%size
+ icell = 45
+ m45 = pmassi*(inoderange(2,icell) - inoderange(1,icell) + 1)
+ s45 = node(icell)%size
 
-!  icell = 49
-!  m49 = pmassi*(inoderange(2,icell) - inoderange(1,icell) + 1)
-!  s49 = node(icell)%size
+ icell = 49
+ m49 = pmassi*(inoderange(2,icell) - inoderange(1,icell) + 1)
+ s49 = node(icell)%size
 
-!  write(*,*) 'predicted disbalance = ', 5.0*(r22_44**3)*m49*m44*(abs(m44**2 - m45**2)/m45**2)/r22_49**5
-!  write(*,*) 'predicted disbalance = ', 5.0*(r22_45**3)*m49*m44*(abs(m44**2 - m45**2)/m45**2)/r22_49**5
+ write(*,*) 'predicted disbalance = ', 5.0*(r22_44**3)*m49*m44*(abs(m44**2 - m45**2)/m45**2)/r22_49**5
+ write(*,*) 'predicted disbalance = ', 5.0*(r22_45**3)*m49*m44*(abs(m44**2 - m45**2)/m45**2)/r22_49**5
+ write(*,*) 'predicted disbalance = ', 4.0*(r22_45**3)*m49*m22*m45/m44*(1.0 - m45/m44)/r22_49**5
 
 !  k = 38 + 16
 !  write(*,'(i3)', advance='no') 0
@@ -2713,7 +2723,9 @@ subroutine finish_cell_and_store_results(icall,cell,fxyzu,xyzh,vxyzu,poten,dt,dv
 #endif
 #ifdef EXPAND_FGRAV_IN_MULTIPOLE
  use part,           only:frxyz
+#ifdef NEIGHMAP
  use linklist,       only:forcemap
+#endif
 #endif
 
  integer,            intent(in)    :: icall
@@ -2922,8 +2934,11 @@ subroutine finish_cell_and_store_results(icall,cell,fxyzu,xyzh,vxyzu,poten,dt,dv
 #ifndef EXPAND_FGRAV_IN_MULTIPOLE
     call expand_fgrav_in_taylor_series(cell%fgrav,dx,dy,dz,fxi,fyi,fzi,poti)
 #else
-    ! call expand_fgrav_in_taylor_series(cell%fgrav,dx,dy,dz,fxi,fyi,fzi,frxi,fryi,frzi,poti,cell%icell,forcemap)
-    call expand_fgrav_in_taylor_series(cell%fgrav,dx,dy,dz,fxi,fyi,fzi,frxi,fryi,frzi,poti,cell%icell)
+#ifdef NEIGHMAP
+    call expand_fgrav_in_taylor_series(cell%fgrav,dx,dy,dz,fxi,fyi,fzi,frxi,fryi,frzi,poti,cell%icell,forcemap)
+#else
+    call expand_fgrav_in_taylor_series(cell%fgrav,dx,dy,dz,fxi,fyi,fzi,frxi,fryi,frzi,poti)
+#endif
 #endif
     ! write(*,*) 'expand_fgrav_in_taylor_series = ', i, fxi, sum(frxi(:))
 #ifdef EXPAND_FGRAV_IN_MULTIPOLE

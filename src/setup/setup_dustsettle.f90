@@ -29,7 +29,7 @@ module setup
 !   - stellar_mass      : *mass of the central star [Msun]*
 !
 ! :Dependencies: boundary, dim, dust, externalforces, infile_utils, io,
-!   mpidomain, options, part, physcon, prompting, radiation_utils,
+!   kernel, mpidomain, options, part, physcon, prompting, radiation_utils,
 !   set_dust, setup_params, table_utils, timestep, unifdis, units
 !
  use part,           only:ndusttypes,ndustsmall
@@ -254,7 +254,7 @@ end function rhofunc
 !+
 !----------------------------------------------------------------
 subroutine write_setupfile(filename)
- use infile_utils, only: write_inopt
+ use infile_utils, only:write_inopt
  character(len=*), intent(in) :: filename
  integer, parameter           :: iunit = 20
 
@@ -293,7 +293,7 @@ end subroutine write_setupfile
 !+
 !----------------------------------------------------------------
 subroutine read_setupfile(filename,ierr)
- use infile_utils, only: open_db_from_file,inopts,read_inopt,close_db
+ use infile_utils, only:open_db_from_file,inopts,read_inopt,close_db
  use io,           only: error
  use units,        only: select_unit
  character(len=*), intent(in)  :: filename

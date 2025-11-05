@@ -24,7 +24,7 @@ module part
 !
 ! :Dependencies: allocutils, dim, dtypekdtree, io, krome_user, mpiutils
 !
- use dim, only:ndim,maxp,maxpsph,maxsts,ndivcurlv,ndivcurlB,maxvxyzu,maxalpha,&
+ use dim, only:ndim,maxp,maxpsph,ndivcurlv,ndivcurlB,maxvxyzu,maxalpha,&
                maxptmass,maxdvdx,nsinkproperties,mhd,maxmhd,maxBevol,&
                maxp_h2,maxindan,nabundances,periodic,ind_timesteps,&
                maxgrav,ngradh,maxtypes,gravity,maxp_dustfrac,&
@@ -37,7 +37,7 @@ module part
                use_sinktree,nvel_ptmass
  use dtypekdtree, only:kdnode
 #ifdef KROME
- use krome_user, only: krome_nmols
+ use krome_user, only:krome_nmols
 #endif
  implicit none
 !
@@ -336,7 +336,6 @@ module part
  integer, parameter   :: ipertg = 6 ! perturbation from gas (needed for sinktree method)
  integer, parameter   :: ikap   = 7 ! kappa slow down
 
-
  ! needed for group identification and sorting
  integer  :: n_group = 0
  integer  :: n_ingroup = 0
@@ -394,17 +393,13 @@ module part
  integer, allocatable :: ibelong(:)
 
 !
-!--super time stepping
-!
- integer(kind=1), allocatable :: istsactive(:)
- integer(kind=1), allocatable :: ibin_sts(:)
 !
 !--size of the buffer required for transferring particle
 !  information between MPI threads
 !
  integer, parameter :: ipartbufsize = 129
 
- real            :: hfact,Bextx,Bexty,Bextz
+ real            :: hfact,Bextx,Bexty,Bextz,tolh
  integer         :: npart
  integer(kind=8) :: ntot
  integer         :: ideadhead = 0
@@ -535,8 +530,6 @@ subroutine allocate_part
  call allocate_array('tstop', tstop, maxdusttypes, maxan)
  call allocate_array('ll', ll, maxan)
  call allocate_array('ibelong', ibelong, maxp)
- call allocate_array('istsactive', istsactive, maxsts)
- call allocate_array('ibin_sts', ibin_sts, maxsts)
  call allocate_array('nucleation', nucleation, n_nucleation, maxp_nucleation*inucleation)
  call allocate_array('tau', tau, maxp*itau_alloc)
  call allocate_array('tau_lucy', tau_lucy, maxp*itauL_alloc)
@@ -552,7 +545,6 @@ subroutine allocate_part
  call allocate_array("shortsinktree", shortsinktree, maxptmass, maxptmass)
  call allocate_array("gtgrad", gtgrad, 3, maxptmass)
  call allocate_array('isionised', isionised, maxp)
-
 
 end subroutine allocate_part
 
@@ -635,8 +627,6 @@ subroutine deallocate_part
  if (allocated(tstop))        deallocate(tstop)
  if (allocated(ll))           deallocate(ll)
  if (allocated(ibelong))      deallocate(ibelong)
- if (allocated(istsactive))   deallocate(istsactive)
- if (allocated(ibin_sts))     deallocate(ibin_sts)
  if (allocated(apr_level))    deallocate(apr_level)
  if (allocated(apr_level_soa)) deallocate(apr_level_soa)
  if (allocated(group_info))   deallocate(group_info)
@@ -667,6 +657,9 @@ subroutine init_part
  xyzmh_ptmass = 0.
  vxyz_ptmass  = 0.
  dsdt_ptmass  = 0.
+ group_info   = 0.
+ bin_info     = 0.
+ nmatrix      = 0.
 
 !--initialise sinktree array
  shortsinktree = 1
@@ -736,8 +729,6 @@ subroutine init_part
  enddo
 !$omp end parallel do
  norig = maxp
-
-
 
 end subroutine init_part
 
@@ -1297,7 +1288,6 @@ subroutine copy_particle(src,dst,new_part)
     iorig(dst) = iorig(src) ! we are moving the particle within the list; maintain ID
  endif
 
- return
 end subroutine copy_particle
 
 !----------------------------------------------------------------
@@ -1396,10 +1386,6 @@ subroutine copy_particle_all(src,dst,new_part)
     T_gas_cool(dst)       = T_gas_cool(src)
  endif
  ibelong(dst) = ibelong(src)
- if (maxsts==maxp) then
-    istsactive(dst) = istsactive(src)
-    ibin_sts(dst) = ibin_sts(src)
- endif
  if (use_apr) then
     apr_level(dst)      = apr_level(src)
     apr_level_soa(dst)  = apr_level_soa(src)
@@ -1412,7 +1398,6 @@ subroutine copy_particle_all(src,dst,new_part)
     iorig(dst) = iorig(src) ! we are moving the particle within the list; maintain ID
  endif
 
- return
 end subroutine copy_particle_all
 
 !----------------------------------------------------------------
@@ -1515,10 +1500,6 @@ subroutine combine_two_particles(keep,discard)
     T_gas_cool(keep)       = 0.5*(T_gas_cool(keep) + T_gas_cool(discard))
  endif
  ibelong(keep) = ibelong(keep)  ! not sure what to do here
- if (maxsts==maxp) then
-    if (istsactive(keep) /= istsactive(discard)) make_warning = .true.
-    ibin_sts(keep) = min(ibin_sts(keep),ibin_sts(discard))
- endif
  if (use_apr .and. (apr_level(keep) /= apr_level(discard))) make_warning = .true.
 
  if (make_warning) call fatal('combine_two_particles','particles incompatible for combining')
@@ -1526,7 +1507,6 @@ subroutine combine_two_particles(keep,discard)
  ! kill the particle we've agreed to throw away
  call kill_particle(discard,npartoftype)
 
- return
 end subroutine combine_two_particles
 
 !------------------------------------------------------------------
@@ -1567,7 +1547,7 @@ end subroutine reorder_particles
 !-----------------------------------------------------------------------
 subroutine shuffle_part(np)
  use io,  only:fatal
- use dim, only: mpi
+ use dim, only:mpi
  integer, intent(inout) :: np
  integer :: newpart
 
@@ -1829,102 +1809,6 @@ end subroutine unfill_buffer
 
 !----------------------------------------------------------------
 !+
-!  utility to reorder an array
-!  (rank 2 arrays)
-!+
-!----------------------------------------------------------------
-
-subroutine copy_array(array,ilist)
- real,    intent(inout) :: array(:,:)
- integer, intent(in)    :: ilist(:)
- real :: arraytemp(size(array(1,:)))
- integer :: i
-
- do i=1,size(array(:,1))
-    arraytemp(:) = array(i,ilist(:))
-    array(i,:) = arraytemp
- enddo
-
- return
-end subroutine copy_array
-
-!----------------------------------------------------------------
-!+
-!  utility to reorder an array
-!  (real4, rank 2 arrays)
-!+
-!----------------------------------------------------------------
-
-subroutine copy_arrayr4(array,ilist)
- real(kind=4), intent(inout) :: array(:,:)
- integer,      intent(in)    :: ilist(:)
- real(kind=4) :: arraytemp(size(array(1,:)))
- integer :: i
-
- do i=1,size(array(:,1))
-    arraytemp(:) = array(i,ilist(:))
-    array(i,:) = arraytemp
- enddo
-
- return
-end subroutine copy_arrayr4
-
-!----------------------------------------------------------------
-!+
-!  utility to reorder an array
-!  (real4, rank 1 arrays)
-!+
-!----------------------------------------------------------------
-
-subroutine copy_array1(array,ilist)
- real(kind=4), intent(inout) :: array(:)
- integer,      intent(in)    :: ilist(:)
- real(kind=4) :: arraytemp(size(array(:)))
-
- arraytemp(:) = array(ilist(:))
- array = arraytemp
-
- return
-end subroutine copy_array1
-
-!----------------------------------------------------------------
-!+
-!  utility to reorder an array
-!  (int1, rank 1 arrays)
-!+
-!----------------------------------------------------------------
-
-subroutine copy_arrayint1(iarray,ilist)
- integer(kind=1), intent(inout) :: iarray(:)
- integer,         intent(in)    :: ilist(:)
- integer(kind=1) :: iarraytemp(size(iarray(:)))
-
- iarraytemp(:) = iarray(ilist(:))
- iarray = iarraytemp
-
- return
-end subroutine copy_arrayint1
-
-!----------------------------------------------------------------
-!+
-!  utility to reorder an array
-!  (int8, rank 1 arrays)
-!+
-!----------------------------------------------------------------
-
-subroutine copy_arrayint8(iarray,ilist)
- integer(kind=8), intent(inout) :: iarray(:)
- integer,         intent(in)    :: ilist(:)
- integer(kind=8) :: iarraytemp(size(iarray(:)))
-
- iarraytemp(:) = iarray(ilist(:))
- iarray = iarraytemp
-
- return
-end subroutine copy_arrayint8
-
-!----------------------------------------------------------------
-!+
 !  Delete particles outside of a defined box
 !+
 !----------------------------------------------------------------
@@ -2014,7 +1898,6 @@ subroutine delete_particles_outside_cylinder(center,radius,zmax,npoftype)
  call shuffle_part(npart)
  if (npart /= sum(npartoftype)) call fatal('del_part_outside_sphere','particles not conserved')
 
-
 end subroutine delete_particles_outside_cylinder
 
 !----------------------------------------------------------------
@@ -2100,7 +1983,7 @@ subroutine accrete_particles_outside_sphere(radius)
  ! accrete particles outside some outer radius
  !
  !$omp parallel default(none) &
- !$omp shared(npart,nptmass,xyzh,xyzmh_ptmass,radius) &
+ !$omp shared(npart,xyzh,radius) &
  !$omp private(i,r2)
  !$omp do
  do i=1,npart
@@ -2108,14 +1991,6 @@ subroutine accrete_particles_outside_sphere(radius)
     if (r2 > radius**2) xyzh(4,i) = -abs(xyzh(4,i))
  enddo
  !$omp enddo
-
- !$omp do
- do i=1,nptmass
-    r2 = xyzmh_ptmass(1,i)**2 + xyzmh_ptmass(2,i)**2 + xyzmh_ptmass(3,i)**2
-    if (r2 > radius**2) xyzmh_ptmass(4,i) = -abs(xyzmh_ptmass(4,i))
- enddo
-!$omp enddo
-
  !$omp end parallel
 
 end subroutine accrete_particles_outside_sphere

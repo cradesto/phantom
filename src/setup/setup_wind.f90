@@ -45,7 +45,7 @@ module setup
 !   - temp_exponent     : *temperature profile T(r) = T_wind*(r/Reff)^(-temp_exponent)*
 !   - wind_gamma        : *adiabatic index (initial if Krome chemistry used)*
 !
-! :Dependencies: dim, eos, infile_utils, inject, io, part, physcon,
+! :Dependencies: dim, eos, infile_utils, inject, io, kernel, part, physcon,
 !   prompting, setbinary, sethierarchical, spherical, units
 !
  use dim, only:isothermal
@@ -209,7 +209,6 @@ subroutine setpart(id,npart,npartoftype,xyzh,massoftype,vxyzu,polyk,gamma,hfact,
     else
        print "(a,g10.3,a)",'      Tight binary orientation referred to: sky'
     endif
-
 
     call set_multiple(primary_mass,secondary_mass,semimajoraxis=semi_major_axis,eccentricity=eccentricity, &
             accretion_radius1=primary_racc,accretion_radius2=secondary_racc, &

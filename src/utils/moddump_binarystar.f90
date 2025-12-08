@@ -245,7 +245,7 @@ subroutine duplicate_star(npart,npartoftype,xyzh,vxyzu,Nstar1,Nstar2)
     vxyzu(1,i) = vxyzu(1,i-npart)
     vxyzu(2,i) = vxyzu(2,i-npart)
     vxyzu(3,i) = vxyzu(3,i-npart)
-    vxyzu(4,i) = vxyzu(4,i-npart)
+    if (maxvxyzu >= 4) vxyzu(4,i) = vxyzu(4,i-npart)
  enddo
 
  Nstar1 = npart
@@ -324,7 +324,7 @@ subroutine add_star(npart,npartoftype,xyzh,vxyzu,Nstar1,Nstar2)
     vxyzu(1,i) = vxyzu2(1,i-npart)
     vxyzu(2,i) = vxyzu2(2,i-npart)
     vxyzu(3,i) = vxyzu2(3,i-npart)
-    vxyzu(4,i) = vxyzu2(4,i-npart)
+    if (maxvxyzu >= 4) vxyzu(4,i) = vxyzu2(4,i-npart)
     eos_vars(:,i) = eos_vars2(:,i-npart)
     if (maxalpha == maxp) then
        alphaind(1,i) = real(alphaind2(1,i-npart),kind=4)

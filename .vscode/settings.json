@@ -1,9 +1,5 @@
 {
   "files.exclude": {
-    "**/obj": true,
-    "**/*.s": true,
-    "**/*.sln": true,
-    "**/*.vfproj": true,
     "**/.git": true,
     "**/.svn": true,
     "**/.hg": true,
@@ -11,25 +7,37 @@
     "**/.DS_Store": true,
     "**/Thumbs.db": true,
     "**/*.un~": true,
-    "**/*.o": true,
-    "**/*.mod": true,
+    "**/*.s": true,
+    "**/*.sln": true,
+    "**/*.vfproj": true,
     "**/.classpath": true,
     "**/.project": true,
     "**/.settings": true,
     "**/.factorypath": true,
+    "**/obj": true,
+    "**/*.o": true,
+    "**/*.mod": true,
     "**/*.sh": true,
     "**/.fmod": true
+  },
+  "files.associations": {
+    "*.mak": "makefile",
+    "*.nml": "FortranFreeForm",
+    "*.inc": "FortranFreeForm",
+    "typeinfo": "cpp"
   },
   "explorerExclude.backup": {},
   "editor.tabSize": 3,
   "fortran.linter.includePaths": [
+    "${workspaceFolder}",
     "${workspaceFolder}/**/**",
   ],
-  // "fortran.linter.extraArgs": [
-  //   "-Wunused-variable",
-  //   "-Wunused-dummy-argument"
-  // ],
-  "fortran.linter.modOutput": "${workspaceFolder}/.fmod",
+  "fortran.linter.compiler": "gfortran",
+  "fortran.linter.extraArgs": [
+  // "-Wunused-variable",
+  // "-Wunused-dummy-argument"
+  ],
+  "fortran.linter.modOutput": "${workspaceFolder}/build/linter",
   "fortran.formatting.formatter": "findent",
   "fortran.formatting.findentArgs": [
     "-r1",

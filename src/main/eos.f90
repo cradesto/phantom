@@ -29,6 +29,7 @@ module eos
 !    20 = Ideal gas + radiation + various forms of recombination energy from HORMONE (Hirai et al., 2020)
 !    23 = Hypervelocity Impact of solids-fluids from Tillotson EOS (Tillotson 1962 - implemented by Brundage A. 2013
 !    24 = read tabulated eos (for use with icooling == 9)
+!    25 = Ideal gas + adiabatic/polytropic eos (for neutron star)
 !
 ! :References:
 !    Lodato & Pringle (2007)
@@ -57,7 +58,7 @@ module eos
  use dim,           only:gr,do_radiation
  use eos_gasradrec, only:irecomb
  implicit none
- integer, parameter, public :: maxeos = 24
+ integer, parameter, public :: maxeos = 25
  real,               public :: polyk, polyk2, gamma
  real,               public :: qfacdisc = 0.75, qfacdisc2 = 0.75
  real,               public :: cs_min = 0.0
@@ -66,7 +67,7 @@ module eos
 
  public  :: equationofstate,setpolyk,eosinfo,get_mean_molecular_weight
  public  :: get_TempPresCs,get_spsound,get_temperature,get_pressure,get_cv
- public  :: eos_is_non_ideal,eos_outputs_mu,eos_outputs_gasP
+ public  :: eos_is_non_ideal,eos_outputs_mu,eos_outputs_gasP,eos_outputs_temp
  public  :: get_local_u_internal,get_temperature_from_u
  public  :: calc_temp_and_ene,entropy,get_rho_from_p_s,get_u_from_rhoT
  public  :: calc_rho_from_PT,get_entropy,get_p_from_rho_s
@@ -132,6 +133,7 @@ subroutine equationofstate(eos_type,ponrhoi,spsoundi,rhoi,xi,yi,zi,tempi,eni,gam
  use eos_helmholtz, only:eos_helmholtz_pres_sound
  use eos_shen,      only:eos_shen_NL3
  use eos_idealplusrad, only:get_idealplusrad_pres,get_idealplusrad_temp,get_idealplusrad_spsoundi
+ use eos_idealpluspoly
  use eos_gasradrec,    only:equationofstate_gasradrec
  use eos_stratified,   only:get_eos_stratified
  use eos_barotropic,   only:get_eos_barotropic
@@ -524,6 +526,20 @@ subroutine equationofstate(eos_type,ponrhoi,spsoundi,rhoi,xi,yi,zi,tempi,eni,gam
     ponrhoi = presi/rhoi
     gammai = 1.d0 + presi/(eni*rhoi)
     spsoundi = sqrt(gammai*ponrhoi)
+
+ case(25)
+
+    !-- Polytropic + Ideal gas
+    !
+    !   check value of gamma
+    if (gammai < tiny(gammai)) call fatal('eos','gamma not set for polytropic ideal +  eos',var='gamma',val=gammai)
+
+    ! call get_idealpluspoly_temp(rhoi,eni,polyk,gammai,mui,tempi)
+    call get_idealpluspoly_temp(eni,mui,tempi)
+    call get_idealpluspoly_press_over_rho(rhoi,eni,polyk,gammai,ponrhoi)
+    ! call get_idealpluspoly_press_over_rho(rhoi,polyk,gammai,mui,tempi,ponrhoi)
+    call get_idealpluspoly_spsoundi(rhoi,eni,polyk,gammai,spsoundi)
+    ! call get_idealpluspoly_spsoundi(rhoi,polyk,gammai,mui,tempi,spsoundi)
 
  case default
     spsoundi = 0. ! avoids compiler warnings
@@ -918,6 +934,7 @@ end function get_u_from_rhoT
 subroutine calc_temp_and_ene(eos_type,rho,pres,ene,temp,ierr,guesseint,mu_local,X_local,Z_local,radhydro)
  use physcon,          only:Rg
  use eos_idealplusrad, only:get_idealgasplusrad_tempfrompres,get_idealplusrad_enfromtemp
+ use eos_idealpluspoly,only:get_idealpluspoly_temp_from_pres,get_idealpluspoly_en_from_temp
  use eos_mesa,         only:get_eos_eT_from_rhop_mesa
  use eos_gasradrec,    only:calc_uT_from_rhoP_gasradrec
  use eos_stamatellos,  only:getintenerg_opdep
@@ -958,6 +975,9 @@ subroutine calc_temp_and_ene(eos_type,rho,pres,ene,temp,ierr,guesseint,mu_local,
  case(24) ! Stamatellos
     temp = pres /(rho * Rg) * mu
     call getintenerg_opdep(temp, rho, ene)
+ case(25) ! Polytropic + Ideal gas
+    call get_idealpluspoly_temp_from_pres(pres,rho,polyk,gamma,mu,temp)
+    call get_idealpluspoly_en_from_temp(mu,temp,ene)
  case default
     ierr = 1
  end select
@@ -1402,13 +1422,30 @@ logical function eos_outputs_gasP(ieos)
  integer, intent(in) :: ieos
 
  select case(ieos)
- case(8,9,10,15,23)
+ case(8,9,10,15,23,25)
     eos_outputs_gasP = .true.
  case default
     eos_outputs_gasP = .false.
  end select
 
 end function eos_outputs_gasP
+
+!-----------------------------------------------------------------------
+!+
+!  Query function to whether to print temperature to ev file
+!+
+!-----------------------------------------------------------------------
+logical function eos_outputs_temp(ieos)
+ integer, intent(in) :: ieos
+
+ select case(ieos)
+ case(2,8,9,10,15,21)
+    eos_outputs_temp = .true.
+ case default
+    eos_outputs_temp = .false.
+ end select
+
+end function eos_outputs_temp
 
 !-----------------------------------------------------------------------
 !+

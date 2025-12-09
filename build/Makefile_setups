@@ -1110,7 +1110,7 @@ endif
 ifeq ($(SETUP), stripping)
 #   single (option 2) or binary (option 3) polytrope test
     SETUPFILE     = setup_star.f90
-   ANALYSIS      = analysis_stripping.f90
+    ANALYSIS      = analysis_stripping.f90
     # ANALYSIS      = utils_getneighbours.F90 utils_omp.F90 analysis_getneighbours.f90
     IND_TIMESTEPS = no
     GRAVITY       = yes

@@ -364,11 +364,11 @@ subroutine externalforce(iexternalforce,xi,yi,zi,hi,ti,fextxi,fextyi,fextzi,phi,
 !--Gravitational wave inspiral
 !
     if (present(ii)) then
-       call get_gw_force_i(ii,fextxi,fextyi,fextzi,phi)
+       call get_gw_force_i(ii,xi,yi,zi,fextxi,fextyi,fextzi,phi)
     else
        ! This will return 0 force, but this should not happen
        ! if initialised properly
-       call get_gw_force_i(0, fextxi,fextyi,fextzi,phi)
+       call get_gw_force_i(0,xi,yi,zi,fextxi,fextyi,fextzi,phi)
     endif
 
  case(iext_discgravity)
@@ -521,7 +521,7 @@ end subroutine update_vdependent_extforce
 !-----------------------------------------------------------------------
 subroutine update_externalforce(iexternalforce,ti,dmdt)
  use io,                only:warn
- use part,              only:xyzh,vxyzu,igas,npart,nptmass,&
+ use part,              only:xyzh,vxyzu,massoftype,igas,npart,nptmass,&
                              xyzmh_ptmass,vxyz_ptmass
  use extern_gwinspiral, only:gw_still_inspiralling,get_gw_force
  use extern_binary,     only:update_binary
@@ -534,7 +534,7 @@ subroutine update_externalforce(iexternalforce,ti,dmdt)
     call update_binary(ti)
  case(iext_gwinspiral)
     call gw_still_inspiralling(npart,xyzh,vxyzu,nptmass,xyzmh_ptmass,vxyz_ptmass,stopped_now)
-    call get_gw_force()
+    call get_gw_force(ti,npart,xyzh,vxyzu,massoftype(igas),nptmass,xyzmh_ptmass,vxyz_ptmass)
     if (stopped_now) call warn('externalforces','Stars have merged. Disabling GW inspiral',2)
  end select
 

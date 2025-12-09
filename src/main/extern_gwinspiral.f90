@@ -32,6 +32,11 @@ module extern_gwinspiral
  real,    private :: fstar1_coef,fstar2_coef
  real,    private :: com(3),comstar1(3),comstar2(3),vcomstar1(3),vcomstar2(3),fstar1(3),fstar2(3)
  logical, private :: isseparate = .true.
+ ! for compatability with extern_gwinspiral_stripping
+ real,       public :: fstar_tensor(3,3)
+ real, save, public :: evector_old(3)
+ real, save, public :: time_old
+ real, save, public :: omega_old(3)
  !
  ! subroutines
  !
@@ -138,7 +143,7 @@ subroutine gw_still_inspiralling(npart,xyzh,vxyzu,nptmass,xyzmh_ptmass,vxyz_ptma
     !$omp enddo
     !$omp end parallel
     !
-    ! Determine how mnay particle are 'in' star 1 when they should be 'in' star 2
+    ! Determine how many particle are 'in' star 1 when they should be 'in' star 2
     ! as determined by their CoM location
     !
     k2 = 0
@@ -187,7 +192,12 @@ end subroutine gw_still_inspiralling
 !        the CoM's have just been calculated and stored
 !+
 !-----------------------------------------------------------------------
-subroutine get_gw_force()
+subroutine get_gw_force(time,npart,xyzh,vxyzu,particlemass,nptmass,xyzmh_ptmass,vxyz_ptmass)
+
+ real,     intent(in) :: time
+ integer,  intent(in) :: npart, nptmass
+ real,     intent(in) :: particlemass
+ real,     intent(in) :: xyzh(:,:), vxyzu(:,:), xyzmh_ptmass(:,:), vxyz_ptmass(:,:)
  real :: dx,dy,dz,separation,vstar1sq,vstar2sq
 
  if ( isseparate ) then
@@ -215,8 +225,9 @@ end subroutine get_gw_force
 !       required force
 !+
 !-----------------------------------------------------------------------
-subroutine get_gw_force_i(i,fextxi,fextyi,fextzi,phi)
+subroutine get_gw_force_i(i,xi,yi,zi,fextxi,fextyi,fextzi,phi)
  integer, intent(in)    :: i
+ real,    intent(in)    :: xi,yi,zi
  real,    intent(inout) :: fextxi,fextyi,fextzi,phi
 
  if (i > 0 .and. isseparate ) then

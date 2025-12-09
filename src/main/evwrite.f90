@@ -231,7 +231,7 @@ subroutine init_evfile(iunit,evfile,open_file)
     call fill_ev_tag(ev_fmt,iev_bdy(3,2),'max_z','0',i,j)
  endif
  iquantities = i - 1 ! The number of different quantities to analyse
- ielements   = j - 1 ! The number of values to be calculated (i.e. the number of columns in .ve)
+ ielements   = j - 1 ! The number of values to be calculated (i.e. the number of columns in .ev)
  !
  !--all threads do above, but only master writes file
  !  (the open_file is to prevent an .ev file from being made during the test suite)

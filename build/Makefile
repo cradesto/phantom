@@ -68,6 +68,7 @@ LIBCXX = -lstdc++
 #FPPFLAGS=
 LDFLAGS=
 LIBTOOL=ar rcs
+LAPACK=
 
 #----------------------------------------------------------------
 # here follows specific configuration options used
@@ -416,7 +417,7 @@ OBJDIR=obj
 .SUFFIXES: .o .f90 .F90 .c .f
 
 %.o : %.f90
-	$(FC) -c $(FFLAGS) $< -o $@
+	$(FC) -c $(FFLAGS) $(FPPFLAGS) $< -o $@
 
 %.o : %.F90
 	$(FC) -c $(FFLAGS) ${FPP_PREFIX} $(FPPFLAGS) $< -o $@
@@ -440,7 +441,7 @@ SRCPOTS= extern_gr.f90 \
          extern_spiral.f90 \
          extern_lensethirring.f90 \
          extern_gnewton.f90 \
-         extern_prdrag.f90 \
+        extern_prdrag.f90 \
          extern_Bfield.f90 \
          extern_densprofile.f90 \
          extern_staticsine.f90 \
@@ -533,6 +534,16 @@ ifeq ($(KROME), yes)
     include MakeKrome
 else
     .PHONY: phantom
+endif
+
+ifeq ($(LAPACK), yes)
+phantom: FPPFLAGS += -DLAPACK
+ifneq ($(UNAME), Darwin)
+phantom: LDFLAGS += -L/usr/lib/x86_64-linux-gnu/lapack -llapack \
+                            -L/usr/lib/x86_64-linux-gnu/blas -lblas
+else
+phantom: LDFLAGS += -L/usr/local/opt/lapack/lib -llapack -lblas
+endif
 endif
 
 phantom: checksystem checkparams $(OBJECTS) phantom.o
@@ -849,7 +860,18 @@ ANALYSISBIN=phantomanalysis
 endif
 
 .PHONY: phantomanalysis
+ifeq ($(LAPACK), yes)
+phantomanalysis: FPPFLAGS += -DLAPACK
+ifneq ($(UNAME), Darwin)
+phantomanalysis: LDFLAGS += -L/usr/lib/x86_64-linux-gnu/lapack -llapack \
+                            -L/usr/lib/x86_64-linux-gnu/blas -lblas
+else
+phantomanalysis: LDFLAGS += -L/usr/local/opt/lapack/lib -llapack -lblas
+endif
+endif
+
 phantomanalysis: checksystem checkparams libphantom $(OBJA)
+	@echo 'Preprocessor flags in phantomanalysis are "'${FPPFLAGS}'"'
 	@echo ""
 	@echo "phantomanalysis: we live to serve you"
 	@echo ""

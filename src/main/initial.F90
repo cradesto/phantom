@@ -744,6 +744,7 @@ subroutine get_derivs_initial(time,dumpfile,ntot,dtnew_first,ierr)
  !$omp shared(npart,eos_vars,fxyzu) &
  !$omp private(i)
  do i=1,npart
+    ! TODO: is it correct for Helmholtz eos?
     eos_vars(3,i) = -1.0 ! initial guess for temperature overridden in eos
     fxyzu(:,i) = 0.      ! so that div_a is 0 in first call to viscosity switch
  enddo

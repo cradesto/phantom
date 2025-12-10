@@ -82,7 +82,7 @@ subroutine init_evfile(iunit,evfile,open_file)
  use nicil,     only:use_ohm,use_hall,use_ambi
  use viscosity, only:irealvisc
  use mpiutils,  only:reduceall_mpi
- use eos,       only:ieos,eos_is_non_ideal,eos_outputs_gasP
+ use eos,       only:ieos,eos_is_non_ideal,eos_outputs_gasP,eos_outputs_temp
  use gravwaveutils, only:calc_gravitwaves
  use boundary_dyn,  only:dynamic_bdy
  integer,            intent(in) :: iunit
@@ -140,7 +140,7 @@ subroutine init_evfile(iunit,evfile,open_file)
  if (maxalpha==maxp) then
     call fill_ev_tag(ev_fmt,      iev_alpha,  'alpha',  'x',  i,j)
  endif
- if (eos_is_non_ideal(ieos) .or. eos_outputs_gasP(ieos)) then
+ if (eos_is_non_ideal(ieos) .or. eos_outputs_gasP(ieos) .or. eos_outputs_temp(ieos)) then
     call fill_ev_tag(ev_fmt,      iev_temp,   'temp',   'xan',i,j)
  endif
  if (do_radiation .and. implicit_radiation) then

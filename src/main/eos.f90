@@ -1388,7 +1388,7 @@ logical function eos_is_non_ideal(ieos)
  integer, intent(in) :: ieos
 
  select case(ieos)
- case(10,12,15,20)
+ case(10,12,15,20,25)
     eos_is_non_ideal = .true.
  case default
     eos_is_non_ideal = .false.
@@ -1439,7 +1439,7 @@ logical function eos_outputs_temp(ieos)
  integer, intent(in) :: ieos
 
  select case(ieos)
- case(2,8,9,10,15,21)
+ case(2,8,9,10,15,25)
     eos_outputs_temp = .true.
  case default
     eos_outputs_temp = .false.
@@ -1476,7 +1476,7 @@ logical function eos_allows_shock_and_work(ieos)
  integer, intent(in) :: ieos
 
  select case(ieos)
- case(2,5,10,12,15,16,17,21,22,24)
+ case(2,5,10,12,15,16,17,21,22,24,25)
     eos_allows_shock_and_work = .true.
  case default
     eos_allows_shock_and_work = .false.

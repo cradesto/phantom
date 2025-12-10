@@ -219,6 +219,7 @@ end subroutine modify_dump
 !
 subroutine duplicate_star(npart,npartoftype,xyzh,vxyzu,Nstar1,Nstar2)
  use part,         only: igas,set_particle_type,copy_particle
+ use dim,          only: maxvxyzu
  integer, intent(inout) :: npart
  integer, intent(inout) :: npartoftype(:)
  real,    intent(inout) :: xyzh(:,:),vxyzu(:,:)

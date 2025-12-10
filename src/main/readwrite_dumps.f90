@@ -46,7 +46,7 @@ subroutine write_fulldump(t,dumpfile,ntotal,iorder,sphNG)
  use dim,   only:maxp,maxvxyzu,maxalpha,ndivcurlv,ndivcurlB,maxgrav,gravity,use_dust,&
                    track_lum,use_dustgrowth,store_dust_temperature,gr,do_nucleation,&
                    ind_timesteps,mhd_nonideal,use_krome,h2chemistry,update_muGamma,mpi,use_apr
- use eos,   only:ieos,eos_is_non_ideal,eos_outputs_mu,eos_outputs_gasP
+ use eos,   only:ieos,eos_is_non_ideal,eos_outputs_mu,eos_outputs_gasP,eos_outputs_temp
  use io,    only:idump,iprint,real4,id,master,error,warning,nprocs
  use part,  only:xyzh,xyzh_label,vxyzu,vxyzu_label,Bevol,Bevol_label,Bxyz,Bxyz_label,npart,maxtypes, &
                    npartoftypetot,update_npartoftypetot, &
@@ -230,7 +230,7 @@ subroutine write_fulldump(t,dumpfile,ntotal,iorder,sphNG)
 
        call write_array(1,vxyzu,vxyzu_label,maxvxyzu,npart,k,ipass,idump,nums,nerr)
        ! write pressure to file
-       if ((eos_outputs_gasP(ieos) .or. eos_is_non_ideal(ieos)) .and. k==i_real) then
+       if ((eos_outputs_gasP(ieos) .or. eos_outputs_temp(ieos) .or. eos_is_non_ideal(ieos)) .and. k==i_real) then
           call write_array(1,eos_vars,eos_vars_label,1,npart,k,ipass,idump,nums,nerr,index=igasP)
        endif
        ! write X, Z, mu to file

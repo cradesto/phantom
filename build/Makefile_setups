@@ -1114,7 +1114,7 @@ ifeq ($(SETUP), stripping)
     # ANALYSIS      = utils_getneighbours.F90 utils_omp.F90 analysis_getneighbours.f90
     IND_TIMESTEPS = no
     GRAVITY       = yes
-    ISOTHERMAL    = yes
+    ISOTHERMAL    = no
     MODFILE       = moddump_binarystar.f90
     KNOWN_SETUP   = yes
     # LAPACK        = yes

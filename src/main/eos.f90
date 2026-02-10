@@ -531,15 +531,18 @@ subroutine equationofstate(eos_type,ponrhoi,spsoundi,rhoi,xi,yi,zi,tempi,eni,gam
 
     !-- Polytropic + Ideal gas
     !
+    ! NB: eni is a thermal energy
+    !
     !   check value of gamma
     if (gammai < tiny(gammai)) call fatal('eos','gamma not set for polytropic ideal +  eos',var='gamma',val=gammai)
+    if (present(gamma_local)) gamma_local = gammai ! gamma is an output
 
-    ! call get_idealpluspoly_temp(rhoi,eni,polyk,gammai,mui,tempi)
-    call get_idealpluspoly_temp(eni,mui,tempi)
-    call get_idealpluspoly_press_over_rho(rhoi,eni,polyk,gammai,ponrhoi)
-    ! call get_idealpluspoly_press_over_rho(rhoi,polyk,gammai,mui,tempi,ponrhoi)
-    call get_idealpluspoly_spsoundi(rhoi,eni,polyk,gammai,spsoundi)
-    ! call get_idealpluspoly_spsoundi(rhoi,polyk,gammai,mui,tempi,spsoundi)
+    call get_idealpluspoly_temp(eni,mui,tempi) ! from thermal en
+   if (isnan(tempi)) call fatal('eos','NaN from get_idealpluspoly_temp',var='tempi',val=tempi)
+    call get_idealpluspoly_press_over_rho(rhoi,eni,polyk,gammai,ponrhoi) ! from thermal en
+    if (isnan(ponrhoi)) call fatal('eos','NaN from get_idealpluspoly_press_over_rho',var='ponrhoi',val=ponrhoi)
+    call get_idealpluspoly_spsoundi(rhoi,eni,polyk,gammai,spsoundi) ! from thermal en
+    if (isnan(spsoundi)) call fatal('eos','NaN from get_idealpluspoly_spsoundi',var='spsoundi',val=spsoundi)
 
  case default
     spsoundi = 0. ! avoids compiler warnings
@@ -976,8 +979,10 @@ subroutine calc_temp_and_ene(eos_type,rho,pres,ene,temp,ierr,guesseint,mu_local,
     temp = pres /(rho * Rg) * mu
     call getintenerg_opdep(temp, rho, ene)
  case(25) ! Polytropic + Ideal gas
+    ! press is total pressure
+    ! ene is thermal energy
     call get_idealpluspoly_temp_from_pres(pres,rho,polyk,gamma,mu,temp)
-    call get_idealpluspoly_en_from_temp(mu,temp,ene)
+    call get_idealpluspoly_en_from_temp(rho,polyk,gamma,mu,temp,ene)
  case default
     ierr = 1
  end select
@@ -1388,7 +1393,7 @@ logical function eos_is_non_ideal(ieos)
  integer, intent(in) :: ieos
 
  select case(ieos)
- case(10,12,15,20,25)
+ case(10,12,15,20)
     eos_is_non_ideal = .true.
  case default
     eos_is_non_ideal = .false.

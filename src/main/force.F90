@@ -2660,6 +2660,7 @@ subroutine finish_cell_and_store_results(icall,cell,fxyzu,xyzh,vxyzu,poten,dt,dv
  use part,           only:Omega_k
  use io,             only:warning
  use physcon,        only:c,kboltz
+ use eos_idealpluspoly, only:get_idealpluspoly_press_over_rho
  integer,            intent(in)    :: icall
  type(cellforce),    intent(inout) :: cell
  real,               intent(inout) :: fxyzu(:,:)
@@ -2702,7 +2703,7 @@ subroutine finish_cell_and_store_results(icall,cell,fxyzu,xyzh,vxyzu,poten,dt,dv
  real    :: rhoi,rho1i,rhogasi,hi,hi1,pmassi,tempi,gammai
  real    :: Bxyzi(3),curlBi(3),dvdxi(9),straini(6)
  real    :: xi,yi,zi,B2i,f2i,divBsymmi,betai,frac_divB,divBi,vcleani,fonrmaxi
- real    :: pri,spsoundi,drhodti,divvi,shearvisc,fac,pdv_work
+ real    :: pri,spsoundi,drhodti,divvi,shearvisc,fac,pdv_work,ponrhoi
  real    :: psii,dtau
  real    :: eni,dudtnonideal
  real    :: dustfraci(maxdusttypes),dustfracisum
@@ -2987,6 +2988,11 @@ subroutine finish_cell_and_store_results(icall,cell,fxyzu,xyzh,vxyzu,poten,dt,dv
                 fac = 0.
              endif
              pdv_work = fac*pri*rho1i*rho1i*drhodti
+             if(ieos == 25) then
+                ! get only thermal part of P/rho
+                call get_idealpluspoly_press_over_rho(eni,ponrhoi)
+                pdv_work = ponrhoi*rho1i*drhodti
+             endif
              if (ipdv_heating > 0) fxyz4 = fxyz4 + pdv_work
              if (ishock_heating > 0) then
                 ! warn if entropy derivative is negative, means 2nd law of thermodynamics is violated

@@ -411,6 +411,11 @@ subroutine compute_energies(t)
              ethermi = pmassi*vxyzu(4,i)*gasfrac
              if (gr) ethermi = (alpha_gr/lorentzi)*ethermi
 
+             ! NB: idealpluspoly
+             if (ieos==25) then
+                ethermi = ethermi + pmassi*ponrhoi/(gammai-1.)*gasfrac
+             endif
+
              if (was_not_accreted) then
                 if (vxyzu(iu,i) < tiny(vxyzu(iu,i))) np_e_eq_0 = np_e_eq_0 + 1
                 if (spsoundi < tiny(spsoundi) .and. vxyzu(iu,i) > 0. ) np_cs_eq_0 = np_cs_eq_0 + 1

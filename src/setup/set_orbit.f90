@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------!
 ! The Phantom Smoothed Particle Hydrodynamics code, by Daniel Price et al. !
-! Copyright (c) 2007-2025 The Authors (see AUTHORS)                        !
+! Copyright (c) 2007-2026 The Authors (see AUTHORS)                        !
 ! See LICENCE file for usage and distribution conditions                   !
 ! http://phantomsph.github.io/                                             !
 !--------------------------------------------------------------------------!
@@ -25,7 +25,7 @@ module setorbit
  implicit none
  public :: set_orbit
  public :: set_defaults_orbit,write_options_orbit,read_options_orbit
- public :: orbit_t,write_trajectory_to_file
+ public :: orbit_t,write_trajectory_to_file,set_orbit_elements
 !
  ! define data types with options needed
  ! to setup an orbit

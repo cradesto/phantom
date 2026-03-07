@@ -18,8 +18,8 @@ module evolve
 !
 ! :Dependencies: HIIRegion, apr, boundary_dyn, centreofmass,
 !   checkconserved, dim, dynamic_dtmax, easter_egg, energies, evolve_utils,
-!   forcing, inject, io, io_control, io_summary, mpiutils, part,
-!   partinject, ptmass, radiation_utils, step_lf_global, timestep,
+!   forcing, growth_coala, inject, io, io_control, io_summary, mpiutils,
+!   part, partinject, ptmass, radiation_utils, step_lf_global, timestep,
 !   timestep_ind, timing
 !
  use dim, only:ind_timesteps
@@ -104,16 +104,18 @@ end subroutine evol_init
 !+
 !----------------------------------------------------------------
 subroutine evol(infile,logfile,evfile,dumpfile,flag)
- use dim,              only:do_radiation
+ use dim,              only:do_radiation,use_dustgrowth_coala
  use io_control,       only:at_simulation_end
  use part,             only:npart,xyzh,fxyzu,vxyzu,rad,radprop
+ use part,             only:grainsize,dustevol,deltav,eos_vars,fext,dustfrac
  use radiation_utils,  only:update_radenergy,exchange_radiation_energy,implicit_radiation
  use step_lf_global,   only:step
  use timestep,         only:time,dt,dtmax,nsteps,dtextforce,rhomaxnow
  use timestep_ind,     only:nactive
- integer, optional, intent(in)   :: flag
+ use growth_coala,     only:get_growth_rate_coala
  character(len=*), intent(in)    :: infile
  character(len=*), intent(inout) :: logfile,evfile,dumpfile
+ integer,          intent(in), optional :: flag
  real            :: dtnew
  real(kind=4)    :: t1,tcpu1
  logical         :: do_radiation_update,abortrun
@@ -143,6 +145,9 @@ subroutine evol(infile,logfile,evfile,dumpfile,flag)
     ! Strang splitting: implicit update for another half step
     !
     if (do_radiation_update) call update_radenergy(npart,xyzh,fxyzu,vxyzu,rad,radprop,0.5*dt)
+
+    if (use_dustgrowth_coala) call get_growth_rate_coala(npart,xyzh,vxyzu,fxyzu,fext,&
+                               grainsize,dustfrac,dustevol,deltav,dt,eos_vars)
 
     call evol_poststep(infile,logfile,evfile,dumpfile,&
                        time,t1,tcpu1,dt,dtmax,nactive,abortrun)
@@ -176,11 +181,11 @@ subroutine evol_prestep(time,dtmax,dt,t1,tcpu1,nactive,inject_flag_present)
  use timestep,     only:dtextforce,dtinject,rhomaxnow
  use timestep_ind, only:istepfrac,nbinmax,set_active_particles,write_binsummary,nactivetot,maxbins
  use timing,       only:get_timings,timers,itimer_lastdump
- real,            intent(in)    :: time
- real,            intent(inout) :: dt,dtmax
- real(kind=4),    intent(out)   :: t1,tcpu1
- integer,         intent(out)   :: nactive
- logical,         intent(in)    :: inject_flag_present
+ real,         intent(in)    :: time
+ real,         intent(inout) :: dt,dtmax
+ real(kind=4), intent(out)   :: t1,tcpu1
+ integer,      intent(out)   :: nactive
+ logical,      intent(in)    :: inject_flag_present
  real(kind=4) :: twallperdump
  integer :: npart_old,nalive,istepHII
  !
@@ -420,8 +425,8 @@ subroutine update_dump_counters(nsteps,dtmax)
  use dynamic_dtmax, only:idtmax_n_next,idtmax_frac,idtmax_frac_next,&
                          dtmax_ifactorWT,dtmax_ifactor,idtmax_n
  use timestep_ind,  only:istepfrac
- integer, intent(in)    :: nsteps
- real,    intent(in)    :: dtmax
+ integer, intent(in) :: nsteps
+ real,    intent(in) :: dtmax
 
  ! number of steps since last dump
  nsteplast = nsteps

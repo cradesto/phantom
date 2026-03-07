@@ -14,13 +14,14 @@ module inject
 !
 ! :Runtime parameters:
 !   - Mdot         : *mass injection rate, in Msun/yr (peak rate if imdot_func > 0)*
+!   - dust_frac    : *Dust fraction in smallest dust bin*
 !   - mdot_func    : *functional form of dM/dt(t) (0=const)*
 !   - omega        : *angular velocity of cloud stream originates from (s^-1)*
 !   - phi0         : *phi0 parameter from the Mendoza+09 streamer*
 !   - r0           : *r0 parameter from the Mendoza+09 streamer*
 !   - r_inj        : *distance from CoM stream is injected*
 !   - stream_width : *width of injected stream in au*
-!   - sym_stream   : *balance angular momentum (0=no, 1=Lz, 2=Lx,Ly, 3=Lx,Ly,Lz)*
+!   - sym_stream   : *balance streamer angular momentum (0=no, 1=Lx,Ly, 2=Lx,Ly,Lz, 3=Lz)*
 !   - tend         : *end time of injection (negative for inf, in years)*
 !   - theta0       : *theta0 parameter from the Mendoza+09 streamer*
 !   - tstart       : *start time of injection (in years)*
@@ -74,13 +75,13 @@ subroutine inject_particles(time,dtlast,xyzh,vxyzu,xyzmh_ptmass,vxyz_ptmass, &
            npart,npart_old,npartoftype,dtinject)
  use dim,       only:use_dust,maxdusttypes
  use options,   only:use_dustfrac
- use part,      only:igas,hfact,massoftype,nptmass,gravity,dustfrac
+ use part,      only:igas,hfact,massoftype,nptmass,gravity,dustfrac,dustevol
  use partinject,only:add_or_update_particle
  use physcon,   only:pi,solarr,au,solarm,years
  use units,     only:udist,umass,utime,get_G_code
  use random,    only:ran2
  use vectorutils, only:make_perp_frame
- use io,          only:master,id
+ use io,          only:master
  real,    intent(in)    :: time, dtlast
  real,    intent(inout) :: xyzh(:,:), vxyzu(:,:), xyzmh_ptmass(:,:), vxyz_ptmass(:,:)
  integer, intent(inout) :: npart, npart_old
@@ -96,7 +97,6 @@ subroutine inject_particles(time,dtlast,xyzh,vxyzu,xyzmh_ptmass,vxyz_ptmass, &
  real :: G_code, end_time
  integer :: ninject_target, ninjected, ipart, iseed
 
-
  if (tend < 0.) end_time = huge(time)
  if (time < tstart .or. time > end_time) return
 
@@ -111,7 +111,6 @@ subroutine inject_particles(time,dtlast,xyzh,vxyzu,xyzmh_ptmass,vxyz_ptmass, &
  omega_cu = omega*utime ! unit is s^-1 in input file, convert to code units
 
  if (gravity) then
-    if (id==master) write(*,*) "Disc self-gravity is on. Including disc mass in cloud orbit calculation."
     mtot=sum(xyzmh_ptmass(4,1:nptmass)) + npartoftype(igas)*massoftype(igas)
  else
     mtot=sum(xyzmh_ptmass(4,1:nptmass))
@@ -169,40 +168,32 @@ subroutine inject_particles(time,dtlast,xyzh,vxyzu,xyzmh_ptmass,vxyz_ptmass, &
     ninjected = ninjected + 1
     call add_or_update_particle( igas, xyzi, vxyz, h, u, ipart, &
                                 npart, npartoftype, xyzh, vxyzu )
-    if (use_dust) then
-       if (use_dustfrac) dustfrac(:, ipart) = dust_frac
-    endif
+    call set_injected_dust_properties(ipart,dust_frac)
     ipart = ipart + 1
     select case(sym_stream)
     case(1)
-      ! Balances x and y momentum
+       ! Balances x and y momentum
        xyzi = (/ -x_si, -y_si, z_si /)
        vxyz = (/ -vxc, -vyc, vzc /)
        call add_or_update_particle( igas, xyzi, vxyz, h, u, ipart, &
                                 npart, npartoftype, xyzh, vxyzu )
-       if (use_dust) then
-          if (use_dustfrac) dustfrac(:, ipart) = dust_frac
-       endif
+       call set_injected_dust_properties(ipart,dust_frac)
        ipart = ipart + 1
     case(2)
-      ! Balances x, y and z momentum
+       ! Balances x, y and z momentum
        xyzi = (/ -x_si, -y_si, -z_si /)
        vxyz = (/ -vxc, -vyc, -vzc /)
        call add_or_update_particle( igas, xyzi, vxyz, h, u, ipart, &
                                 npart, npartoftype, xyzh, vxyzu )
-       if (use_dust) then
-          if (use_dustfrac) dustfrac(:, ipart) = dust_frac
-       endif
+       call set_injected_dust_properties(ipart,dust_frac)
        ipart = ipart + 1
     case(3)
-      ! Balances z momentum
+       ! Balances z momentum
        xyzi = (/ x_si, y_si, -z_si /)
        vxyz = (/ vxc, vyc, -vzc /)
        call add_or_update_particle( igas, xyzi, vxyz, h, u, ipart, &
                                 npart, npartoftype, xyzh, vxyzu )
-       if (use_dust) then
-          if (use_dustfrac) dustfrac(:, ipart) = dust_frac
-       endif
+       call set_injected_dust_properties(ipart,dust_frac)
        ipart = ipart + 1
     end select
  enddo
@@ -210,6 +201,25 @@ subroutine inject_particles(time,dtlast,xyzh,vxyzu,xyzmh_ptmass,vxyz_ptmass, &
  dtinject = huge(dtinject) ! no timestep constraint from injection
 
 contains
+subroutine set_injected_dust_properties(ipart_in,dust_frac_val)
+ integer, intent(in) :: ipart_in
+ real,    intent(in) :: dust_frac_val
+ real :: dustevol_val
+
+ if (use_dust .and. use_dustfrac) then
+    dustfrac(:, ipart_in) = 0.
+    dustevol(:, ipart_in) = 0.
+    if (maxdusttypes > 0) then
+       dustfrac(1, ipart_in) = dust_frac_val
+       if (dust_frac_val > 0. .and. dust_frac_val < 1.) then
+          dustevol_val = sqrt(dust_frac_val/(1. - dust_frac_val))
+          dustevol(1, ipart_in) = dustevol_val
+       endif
+    endif
+ endif
+
+end subroutine set_injected_dust_properties
+
 !-----------------------------------------------------------------------
 !+
 !  Function to return the total mass injected up to time t
@@ -263,7 +273,7 @@ subroutine write_options_inject(iunit)
     if (use_dustfrac) then
        call write_inopt(dust_frac,'dust_frac','Dust fraction in smallest dust bin',iunit)
     endif
- end if
+ endif
 end subroutine write_options_inject
 
 !-----------------------------------------------------------------------
@@ -294,7 +304,7 @@ subroutine read_options_inject(db,nerr)
     if (use_dustfrac) then
        call read_inopt(dust_frac,'dust_frac',db,errcount=nerr,default=dust_frac)
     endif
- end if
+ endif
 end subroutine read_options_inject
 
 !-----------------------------------------------------------------------
@@ -386,7 +396,7 @@ end subroutine theta_at_r
 
 subroutine set_default_options_inject(flag)
 
- integer, optional, intent(in) :: flag
+ integer, intent(in), optional :: flag
 end subroutine set_default_options_inject
 
 end module inject

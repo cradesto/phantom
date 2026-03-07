@@ -18,12 +18,12 @@ module initial
 !   centreofmass, checkconserved, checkoptions, checksetup, cons2prim,
 !   cooling, cpuinfo, deriv, dim, dust, dust_formation, dynamic_dtmax,
 !   energies, eos, evwrite, extern_gr, externalforces, fileutils, forcing,
-!   growth, inject, io, io_control, io_summary, metric, metric_et_utils,
-!   metric_tools, mf_write, mpibalance, mpidomain, mpimemory, mpitree,
-!   mpiutils, nicil, nicil_sup, omputils, options, part, partinject,
-!   porosity, ptmass, radiation_utils, readwrite_dumps, readwrite_infile,
-!   subgroup, timestep, timestep_ind, timing, units, utils_subgroup,
-!   writeheader
+!   growth, growth_coala, inject, io, io_control, io_summary, metric,
+!   metric_et_utils, metric_tools, mf_write, mpibalance, mpidomain,
+!   mpimemory, mpitree, mpiutils, nicil, nicil_sup, omputils, options,
+!   part, partinject, porosity, ptmass, radiation_utils, readwrite_dumps,
+!   readwrite_infile, subgroup, timestep, timestep_ind, timing, units,
+!   utils_subgroup, writeheader
 !
 
  implicit none
@@ -101,14 +101,13 @@ end subroutine initialise
 !+
 !----------------------------------------------------------------
 subroutine startrun(infile,logfile,evfile,dumpfile,noread)
- use dim,              only:maxp,maxalpha,nalpha,mpi,ind_timesteps,inject_parts
+ use dim,              only:maxp,maxalpha,nalpha,mpi,ind_timesteps,inject_parts,gr
  use io,               only:iprint,flush_warnings,fatal,id,master
  use boundary_dyn,     only:dynamic_bdy,init_dynamic_bdy
  use centreofmass,     only:get_centreofmass,print_particle_extent
  use dynamic_dtmax,    only:get_dtmax_initial
  use energies,         only:xyzcom
  use inject,           only:init_inject,inject_particles
- use options,          only:write_files
  use mpibalance,       only:balancedomains
  use mpiutils,         only:reduceall_mpi
  use part,             only:npart,npartoftype,alphaind,ntot,update_npartoftypetot,&
@@ -120,14 +119,14 @@ subroutine startrun(infile,logfile,evfile,dumpfile,noread)
  use timestep,         only:time,dt,dtextforce,dtcourant,dtforce,dtinject,dtmax
  use timestep_ind,     only:ibinnow,init_ibin,istepfrac,nbinmax
  use writeheader,      only:write_header
+ use metric,           only:update_metric
  character(len=*), intent(inout) :: infile
- character(len=*), intent(out) :: logfile,evfile,dumpfile
+ character(len=*), intent(out)   :: logfile,evfile,dumpfile
  logical,          intent(in), optional :: noread
  integer :: ierr,i
  real    :: dtnew_first,dtsinkgas,dummy(3)
- logical :: read_files,iexist
+ logical :: read_files
  integer :: npart_old
- character(len=len(dumpfile)) :: file1D
 
  read_files = .true.
  if (present(noread)) read_files = .not.noread
@@ -192,19 +191,6 @@ subroutine startrun(infile,logfile,evfile,dumpfile,noread)
  if (inject_parts) then
     call init_inject(ierr)
     if (ierr /= 0) call fatal('initial','error initialising particle injection')
-    if (write_files) then
-       !rename wind profile filename
-       inquire(file='wind_profile1D.dat',exist=iexist)
-       if (iexist) then
-          i = len(trim(dumpfile))
-          if (dumpfile(i-2:i) == 'tmp') then
-             file1D = dumpfile(1:i-9) // '1D.dat'
-          else
-             file1D = dumpfile(1:i-5) // '1D.dat'
-          endif
-          call rename('wind_profile1D.dat',trim(file1D))
-       endif
-    endif
     npart_old = npart
     call inject_particles(time,0.,xyzh,vxyzu,xyzmh_ptmass,vxyz_ptmass,&
                           npart,npart_old,npartoftype,dtinject)
@@ -275,7 +261,8 @@ subroutine read_infile_and_initial_conditions(infile,logfile,evfile,dumpfile,tim
  use writeheader,      only:write_codeinfo,write_header
  use cpuinfo,          only:print_cpuinfo
  use io,               only:fatal,warning
- use dim,              only:idumpfile
+ use dim,              only:idumpfile,gr
+ use metric,           only:update_metric
  character(len=*), intent(inout) :: infile,logfile,evfile,dumpfile
  real,             intent(out)   :: time
  integer,          intent(out)   :: ierr
@@ -303,6 +290,9 @@ subroutine read_infile_and_initial_conditions(infile,logfile,evfile,dumpfile,tim
  ! read particle setup from dumpfile
  call read_dump(trim(dumpfile),time,hfactfile,idisk1,iprint,id,nprocs,ierr)
  if (ierr /= 0) call fatal('initial','error reading dumpfile')
+
+ if (gr) call update_metric(time)
+
  call check_setup(nerr,nwarn,restart=.true.) ! sanity check what has been read from file
  if (nwarn > 0) then
     print "(a)"
@@ -323,13 +313,14 @@ end subroutine read_infile_and_initial_conditions
 !----------------------------------------------------------------
 subroutine initialise_physics_modules(dumpfile,infile,time,ierr)
  use dim,            only:mhd_nonideal,gr,driving,use_dust,use_dustgrowth,use_apr,&
-                          update_muGamma,itau_alloc,itauL_alloc,do_nucleation
+                          update_muGamma,itau_alloc,itauL_alloc,do_nucleation,use_dustgrowth_coala
  use io,             only:id,master,iprint,error,fatal
  use apr,            only:init_apr
  use cooling,        only:init_cooling
  use dust,           only:init_drag
  use forcing,        only:init_forcing
  use growth,         only:init_growth
+ use growth_coala,   only:init_growth_coala
  use porosity,       only:init_porosity,init_filfac
  use eos,            only:init_eos,ieos,gmw,gamma
  use nicil,          only:nicil_initialise
@@ -385,6 +376,10 @@ subroutine initialise_physics_modules(dumpfile,infile,time,ierr)
           if (ierr /= 0) call fatal('initial','error initialising porosity variables')
           call init_filfac(npart,xyzh,vxyzu)
        endif
+    endif
+    if (use_dustgrowth_coala) then
+       call init_growth_coala(ierr)
+       if (ierr /= 0) call fatal('initial','error initialising dust growth with COALA')
     endif
  endif
  !
@@ -711,11 +706,11 @@ subroutine get_derivs_initial(time,dumpfile,ntot,dtnew_first,ierr)
  use io,               only:ianalysis
  use radiation_utils,  only:set_radiation_and_gas_temperature_equal
 #endif
- real,         intent(in)  :: time
- character(*), intent(in)  :: dumpfile
+ real,            intent(in)  :: time
+ character(*),    intent(in)  :: dumpfile
  integer(kind=8), intent(in)  :: ntot
- real,         intent(out) :: dtnew_first
- integer,      intent(out) :: ierr
+ real,            intent(out) :: dtnew_first
+ integer,         intent(out) :: ierr
  integer :: i,j,nderivinit,ialphaloc
 
  ierr = 0
@@ -775,8 +770,8 @@ subroutine get_energies_and_init_ev_files(infile,evfile,logfile,time,dt)
  use mf_write,         only:binpos_write,binpos_init
  use io,               only:ibinpos
 #endif
- character(len=*), intent(in)  :: infile,evfile,logfile
- real,             intent(in)  :: time,dt
+ character(len=*), intent(in) :: infile,evfile,logfile
+ real,             intent(in) :: time,dt
 
  if (write_files) call init_evfile(ievfile,evfile,.true.)
  call write_evfile(time,dt)

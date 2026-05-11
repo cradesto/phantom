@@ -32,13 +32,13 @@
       "command": "make",
       "args": [
         "-C",
-        "/home/marat/phys/phantom/phantom_test/test_gw/star_tolv_1e-2_tree_0.5_eos_02_r_10_n_200_stripping/",
+        "${workspaceFolder}/../phantom_test/binary_26.04.18/",
         // "analysis"
       ],
       "osx": {
         "args": [
           "-C",
-          "/Users/marat/Documents/phys/phantom/phantom_test/m1_1.4Msun_r1_10km_m2_0.5Msun_r2_10km_d_36km",
+          "${workspaceFolder}/../phantom/phantom_test/binary_26.04.18/",
           "analysis"
         ],
       },
@@ -59,13 +59,13 @@
       "command": "make",
       "args": [
         "-C",
-        "/home/marat/phys/phantom/phantom_test/test_gw/star_tolv_1e-2_tree_0.5_eos_02_r_10_n_200_stripping/",
+        "${workspaceFolder}/../phantom_test/binary_26.04.18/",
         "clean"
       ],
       "osx": {
         "args": [
           "-C",
-          "/Users/marat/Documents/phys/phantom/phantom_test/m1_1.4Msun_r1_10km_m2_0.5Msun_r2_10km_d_36km/",
+          "${workspaceFolder}/../phantom_test/binary_26.04.18/",
           "clean"
         ],
       },

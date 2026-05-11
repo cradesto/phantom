@@ -456,6 +456,7 @@ ifeq ($(SETUP), neutronstar)
     SETUPFILE= setup_star.f90
     ISOTHERMAL=yes
     KNOWN_SETUP=yes
+    GRAVITY=yes
 endif
 
 ifeq ($(SETUP), sphereinbox)

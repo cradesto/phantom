@@ -77,7 +77,7 @@ subroutine rho_polytrope(gamma,polyk,Mstar,rtab,rhotab,npts,rhocentre,set_polyk,
  integer                          :: i,j
  real                             :: r(size(rtab)),v(size(rtab)),den(size(rtab))
  real                             :: dr,an,rhs,Mstar_f,rhocentre0
- real                             :: fac,rfac
+ real                             :: fac,rfac,rfac_target
 
  dr   = 0.001
  an   = 1./(gamma-1.)
@@ -87,12 +87,13 @@ subroutine rho_polytrope(gamma,polyk,Mstar,rtab,rhotab,npts,rhocentre,set_polyk,
 
  ! http://www.astronet.ru/db/msg/1169513/node14.html
  ! r(i) -> \xi
+ ! v(i) -> \Theta*\xi
  ! (v(i)/r(i)) -> \Theta
  ! The Lane-Emden equation
  ! \frac{d^2v}{d\xi^2} = - \left(\frac{v}{\xi}\right)^n \xi
- ! den(j) = (v(j)/r(j))**an -> \Theta^n = \left(\frac{\rho}{\rho_c}\right)
+ ! den(i) = (v(i)/r(i))**an -> \Theta^n = \left(\frac{\rho}{\rho_c}\right)
  ! Mstar_f -> 4 \pi \mu_1
- ! rhocentre0 -> rho_c
+ ! rhocentre0 -> rho_c == \lambda
  ! rfac -> \alpha
  ! rtab -> R
  ! rhotab -> \rho
@@ -131,11 +132,12 @@ subroutine rho_polytrope(gamma,polyk,Mstar,rtab,rhotab,npts,rhocentre,set_polyk,
 
  if (present(set_polyk) .and. present(Rstar) ) then
     if ( set_polyk ) then
-       !--Rescale radius to get polyk
-       ! rfac      = Rstar/(r(npts)*rfac)
-       ! polyk     = polyk*rfac
-       polyk      = (Rstar/(r(npts)))**(3.*gamma - 4.)*(Mstar/Mstar_f)**(2. - gamma)*&
-         (fourpi*(gamma - 1.)/gamma)
+       !--Rescale K so radius matches target Rstar.
+       !  With fixed mass, radius scales as R ~ K^(1/(3*gamma-4)).
+       rfac_target = Rstar/(r(npts)*rfac)
+       polyk       = polyk*rfac_target**(3.*gamma - 4.)
+      ! polyk      = (Rstar/(r(npts)))**(3.*gamma - 4.)*(Mstar/Mstar_f)**(2. - gamma)*&
+      ! (fourpi*(gamma - 1.)/gamma)
        !
        !--Re-rescale central density to give desired mass (using the correct polyk)
        fac        = (gamma*polyk)/(fourpi*(gamma - 1.))

@@ -18,12 +18,12 @@ module initial
 !   centreofmass, checkconserved, checkoptions, checksetup, cons2prim,
 !   cooling, cpuinfo, deriv, dim, dust, dust_formation, dynamic_dtmax,
 !   energies, eos, evwrite, extern_gr, externalforces, fileutils, forcing,
-!   growth, growth_coala, inject, io, io_control, io_summary, metric,
-!   metric_et_utils, metric_tools, mf_write, mpibalance, mpidomain,
-!   mpimemory, mpitree, mpiutils, nicil, nicil_sup, omputils, options,
-!   part, partinject, porosity, ptmass, radiation_utils, readwrite_dumps,
-!   readwrite_infile, subgroup, timestep, timestep_ind, timing, units,
-!   utils_subgroup, writeheader
+!   growth, growth_coala, inject, io, io_control, io_summary,
+!   krome_interface, metric, metric_et_utils, metric_tools, mf_write,
+!   mpibalance, mpidomain, mpimemory, mpitree, mpiutils, nicil, nicil_sup,
+!   omputils, options, part, partinject, porosity, ptmass, radiation_utils,
+!   readwrite_dumps, readwrite_infile, subgroup, timestep, timestep_ind,
+!   timing, units, utils_subgroup, writeheader
 !
 
  implicit none
@@ -108,6 +108,7 @@ subroutine startrun(infile,logfile,evfile,dumpfile,noread)
  use dynamic_dtmax,    only:get_dtmax_initial
  use energies,         only:xyzcom
  use inject,           only:init_inject,inject_particles
+ use krome_interface,  only:initialise_krome
  use mpibalance,       only:balancedomains
  use mpiutils,         only:reduceall_mpi
  use part,             only:npart,npartoftype,alphaind,ntot,update_npartoftypetot,&
@@ -197,11 +198,8 @@ subroutine startrun(infile,logfile,evfile,dumpfile,noread)
     call update_injected_particles(npart_old,npart,istepfrac,nbinmax,time,dtmax,dt,dtinject)
  endif
 
-#ifdef KROME
  ! set initial chemical abundance values
  call initialise_krome()
- dtextforce = min(dtextforce,dtmax/2.0**10)  ! Required since a cooling timestep is not initialised for implicit cooling
-#endif
 
  ! calculate initial derivatives (density, SPH forces, etc.)
  call get_derivs_initial(time,dumpfile,ntot,dtnew_first,ierr)
@@ -490,7 +488,7 @@ subroutine initialise_external_forces_and_gr(time,dtextforce,ierr)
     if (npart > 0) then
        call get_density_global(2,zero_fxyzu=.true.)
     endif
-    call init_metric(npart,xyzh,metrics,metricderivs)
+    call init_metric(npart,xyzh,metrics,metricderivs,time=time)
     call prim2consall(npart,xyzh,metrics,vxyzu,pxyzu,use_dens=.false.,dens=dens)
     if (iexternalforce > 0 .and. imetric /= imet_minkowski) then
        call initialise_externalforces(iexternalforce,ierr)
@@ -619,7 +617,7 @@ subroutine initialise_sink_particle_forces(time,dtextforce,dtsinkgas,logfile,ier
 
     if (gr) then
        ! calculate metric derivatives and external force from metric on sink particles
-       call init_metric(nptmass,xyzmh_ptmass,metrics_ptmass,metricderivs_ptmass)
+       call init_metric(nptmass,xyzmh_ptmass,metrics_ptmass,metricderivs_ptmass,time=time)
        call prim2consall(nptmass,xyzmh_ptmass,metrics_ptmass,&
                         vxyz_ptmass,pxyzu_ptmass,use_dens=.false.,use_sink=.true.)
        call get_grforce_all(nptmass,xyzmh_ptmass,metrics_ptmass,metricderivs_ptmass,&
